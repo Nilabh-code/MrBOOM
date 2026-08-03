@@ -1,0 +1,16 @@
+{"ts": "2026-08-02T16:36:58.055814+00:00", "method": "GET", "path": "/", "query": "", "status": 200, "src": "192.168.1.78", "ua": "curl/8.21.0"}
+{"ts": "2026-08-02T16:36:58.071549+00:00", "method": "GET", "path": "/", "query": "", "status": 200, "src": "192.168.1.78", "ua": "curl/8.21.0"}
+{"ts": "2026-08-02T16:36:58.110754+00:00", "method": "GET", "path": "/", "query": "", "status": 200, "src": "192.168.1.78", "ua": "curl/8.21.0"}
+{"ts": "2026-08-02T16:37:31.877688+00:00", "method": "POST", "path": "/login", "query": "", "status": 401, "src": "192.168.1.78", "ua": "curl/8.21.0"}
+{"ts": "2026-08-02T16:37:37.709719+00:00", "method": "POST", "path": "/login", "query": "", "status": 401, "src": "192.168.1.78", "ua": "curl/8.21.0"}
+{"ts": "2026-08-02T16:37:37.731070+00:00", "method": "POST", "path": "/login", "query": "", "status": 401, "src": "192.168.1.78", "ua": "curl/8.21.0"}
+{"ts": "2026-08-02T16:38:08.817859+00:00", "method": "POST", "path": "/login", "query": "", "status": 401, "src": "172.18.0.1", "ua": "curl/8.14.1"}
+{"ts": "2026-08-02T16:38:51.253906+00:00", "method": "POST", "path": "/login", "query": "", "status": 200, "src": "172.18.0.1", "ua": "curl/8.14.1"}
+{"ts": "2026-08-02T16:38:58.714513+00:00", "method": "POST", "path": "/login", "query": "", "status": 401, "src": "192.168.1.78", "ua": "curl/8.21.0"}
+{"ts": "2026-08-02T16:38:58.764156+00:00", "method": "GET", "path": "/tools/fetch-preview", "query": "url=http://internal-api:8443/api/v1/config", "status": 200, "src": "192.168.1.78", "ua": "curl/8.21.0"}
+{"ts": "2026-08-02T16:38:58.780666+00:00", "method": "GET", "path": "/tools/diagnostics", "query": "host=127.0.0.1%7Cid", "status": 200, "src": "192.168.1.78", "ua": "curl/8.21.0"}
+{"ts": "2026-08-02T16:38:58.806572+00:00", "method": "GET", "path": "/files/download", "query": "file=%2Fapp%2F.env", "status": 200, "src": "192.168.1.78", "ua": "curl/8.21.0"}
+{"ts": "2026-08-02T16:39:15.401230+00:00", "method": "POST", "path": "/login", "query": "", "status": 401, "src": "192.168.1.78", "ua": "curl/8.21.0"}
+{"ts": "2026-08-02T16:39:15.418693+00:00", "method": "POST", "path": "/login", "query": "", "status": 401, "src": "192.168.1.78", "ua": "curl/8.21.0"}
+{"ts": "2026-08-02T16:39:39.774716+00:00", "method": "POST", "path": "/login", "query": "", "status": 200, "src": "192.168.1.78", "ua": "curl/8.21.0"}
+{"ts": "2026-08-02T16:41:14.545772+00:00", "method": "GET", "path": "/", "query": "", "status": 200, "src": "192.168.1.78", "ua": "curl/8.21.0"}

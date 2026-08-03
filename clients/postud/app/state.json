@@ -1,0 +1,3113 @@
+{
+ "code": "COXKOYKMF",
+ "status": "complete",
+ "progress": "Report generated: app_postud_io_report_b2173299ce84.md",
+ "logs": [
+  {
+   "t": "07:51:43",
+   "msg": "DNS records: 0 | ASN ranges: 0 | uncover hosts: 0"
+  },
+  {
+   "t": "07:51:43",
+   "msg": "Probing HTTP services..."
+  },
+  {
+   "t": "07:51:51",
+   "msg": "HTTP: 10 live services"
+  },
+  {
+   "t": "07:51:51",
+   "msg": "Analyzing CSP headers..."
+  },
+  {
+   "t": "07:51:51",
+   "msg": "CSP: 0 S3 buckets found"
+  },
+  {
+   "t": "07:51:51",
+   "msg": "Analyzing JavaScript bundles..."
+  },
+  {
+   "t": "07:51:53",
+   "msg": "JS: 0 API endpoints, 0 potential secrets"
+  },
+  {
+   "t": "07:51:53",
+   "msg": "Assessing client-side security (cookies/CSP/DOM-XSS)..."
+  },
+  {
+   "t": "07:51:58",
+   "msg": "clientside: 33 findings"
+  },
+  {
+   "t": "07:51:58",
+   "msg": "Collecting passive URLs (PD urlfinder)..."
+  },
+  {
+   "t": "07:51:58",
+   "msg": "Scanning ports (PD naabu)..."
+  },
+  {
+   "t": "07:52:04",
+   "msg": "Ports: 2 open across 1 IPs"
+  },
+  {
+   "t": "07:52:04",
+   "msg": "web port 443 -> https://app.postud.io:443/ (200)"
+  },
+  {
+   "t": "07:52:05",
+   "msg": "web port 80 -> http://app.postud.io:80/ (200)"
+  },
+  {
+   "t": "07:52:05",
+   "msg": "Analyzing TLS certificates (PD tlsx)..."
+  },
+  {
+   "t": "07:52:05",
+   "msg": "Gathering domain intelligence..."
+  },
+  {
+   "t": "07:52:05",
+   "msg": "WHOIS:  ()"
+  },
+  {
+   "t": "07:52:05",
+   "msg": "Analyzing security posture..."
+  },
+  {
+   "t": "07:52:05",
+   "msg": "WAF: none detected | 5 security headers missing"
+  },
+  {
+   "t": "07:52:05",
+   "msg": "Hunting origin IPs..."
+  },
+  {
+   "t": "07:52:07",
+   "msg": "Origins: 3 candidates"
+  },
+  {
+   "t": "07:52:07",
+   "msg": "Crawling web endpoints (PD katana)..."
+  },
+  {
+   "t": "07:52:07",
+   "msg": "Analyzing exploit chains for open ports..."
+  },
+  {
+   "t": "07:52:08",
+   "msg": "Running nuclei vulnerability scanner..."
+  },
+  {
+   "t": "07:52:08",
+   "msg": "Correlating detected versions against CVE corpus (cvemap)..."
+  },
+  {
+   "t": "07:52:08",
+   "msg": "Looking up CVEs for detected services (PD vulnx)..."
+  },
+  {
+   "t": "07:52:08",
+   "msg": "Checking self-grown skills for open services..."
+  },
+  {
+   "t": "07:52:08",
+   "msg": "Fetching Wayback Machine history..."
+  },
+  {
+   "t": "07:52:23",
+   "msg": "Brute-forcing subdomains (wordlist)..."
+  },
+  {
+   "t": "07:52:58",
+   "msg": "Fingerprinting technologies (extended)..."
+  },
+  {
+   "t": "07:53:00",
+   "msg": "Busting directories (wordlist)..."
+  },
+  {
+   "t": "07:56:21",
+   "msg": "Probing discovered paths for app-level vulnerabilities..."
+  },
+  {
+   "t": "07:56:22",
+   "msg": "Checking for subdomain takeover vulnerabilities..."
+  },
+  {
+   "t": "07:56:22",
+   "msg": "Checking CORS misconfigurations..."
+  },
+  {
+   "t": "07:56:25",
+   "msg": "Testing for open redirects..."
+  },
+  {
+   "t": "07:56:31",
+   "msg": "Scanning basic injection points..."
+  },
+  {
+   "t": "07:56:31",
+   "msg": "Scanning for hardcoded secrets in pages..."
+  },
+  {
+   "t": "07:56:32",
+   "msg": "Checking for exposed debug/health endpoints..."
+  },
+  {
+   "t": "07:58:41",
+   "msg": "Hunting origin IPs behind CDN/WAF..."
+  },
+  {
+   "t": "07:58:48",
+   "msg": "Probing login forms and rate limiting..."
+  },
+  {
+   "t": "07:58:50",
+   "msg": "Extracting source maps and API endpoints..."
+  },
+  {
+   "t": "07:58:52",
+   "msg": "Discovering API endpoints and auth requirements..."
+  },
+  {
+   "t": "07:58:52",
+   "msg": "Hunting secrets via wayback archives..."
+  },
+  {
+   "t": "08:00:17",
+   "msg": "Testing default credentials..."
+  },
+  {
+   "t": "08:00:19",
+   "msg": "Testing API auth and JWT handling..."
+  },
+  {
+   "t": "08:00:19",
+   "msg": "AI is analyzing findings..."
+  },
+  {
+   "t": "08:00:22",
+   "msg": "AI assessment complete"
+  },
+  {
+   "t": "08:00:22",
+   "msg": "Hunting for novel attack hypotheses (0-day style)..."
+  },
+  {
+   "t": "08:00:22",
+   "msg": "Generating report..."
+  },
+  {
+   "t": "08:00:22",
+   "msg": "Report generated: app_postud_io_report_b2173299ce84.md"
+  }
+ ],
+ "events": [
+  {
+   "type": "verification",
+   "ts": "2026-08-03T07:50:01.708191+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "kind": "dns",
+    "command": "DNS lookup app.postud.io",
+    "passed": true
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "usage",
+   "ts": "2026-08-03T07:50:01.708210+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "interval": "cumulative",
+    "usage": {
+     "cost_usd": 0.01
+    }
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "message",
+   "ts": "2026-08-03T07:50:01.708222+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "role": "assistant_thinking",
+    "text": "Running ProjectDiscovery subfinder and crt.sh for subdomain enumeration..."
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "message",
+   "ts": "2026-08-03T07:50:31.744590+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "role": "assistant_thinking",
+    "text": "Falling back to crt.sh + wordlist enumeration..."
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:51:42.657581+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "sub-765c5155",
+    "name": "subfinder + crt.sh",
+    "target": "app.postud.io",
+    "category": "search"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:51:42.957762+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "sub-765c5155",
+    "status": "ok",
+    "result": "5 subdomains"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "health.assessment",
+   "ts": "2026-08-03T07:51:42.957846+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "score": 0.7,
+    "signals": [
+     "subdomain_discovery"
+    ]
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "message",
+   "ts": "2026-08-03T07:51:42.957896+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "role": "assistant_thinking",
+    "text": "Running PD dnsx, asnmap, and uncover for deeper discovery..."
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "health.assessment",
+   "ts": "2026-08-03T07:51:43.827835+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "score": 0.75,
+    "signals": [
+     "pd_dns_asn"
+    ]
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "message",
+   "ts": "2026-08-03T07:51:43.827931+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "role": "assistant",
+    "text": "Discovered **5 subdomains**. Now probing for live HTTP services."
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:51:43.827963+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "http-765c5155",
+    "name": "HTTP probe",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:51:51.860560+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "http-765c5155",
+    "status": "ok",
+    "result": "10 live"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "edit",
+   "ts": "2026-08-03T07:51:51.860596+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "path": "app.postud.io/http",
+    "lines_added": 10,
+    "lines_removed": 0
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "health.assessment",
+   "ts": "2026-08-03T07:51:51.860774+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "score": 0.8,
+    "signals": [
+     "csp_analysis"
+    ]
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "message",
+   "ts": "2026-08-03T07:51:51.860787+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "role": "assistant_thinking",
+    "text": "Scanning JavaScript bundles for API endpoints, secrets, and AWS keys..."
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:51:51.860792+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "js-765c5155",
+    "name": "JS bundle analysis",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:51:53.151135+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "js-765c5155",
+    "status": "ok",
+    "result": "0 endpoints, 0 secrets"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:51:53.151218+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "cs-765c5155",
+    "name": "clientside assessment",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:51:58.512415+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "cs-765c5155",
+    "status": "ok",
+    "result": "33 client-side findings"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "message",
+   "ts": "2026-08-03T07:51:58.512486+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "role": "assistant",
+    "text": "Client-side assessment found **33** issues (5 medium+): cookies/CSP/DOM-XSS."
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:51:58.512511+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "urlf-765c5155",
+    "name": "urlfinder",
+    "target": "app.postud.io",
+    "category": "search"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:51:58.512856+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "urlf-765c5155",
+    "status": "empty",
+    "result": "0 URLs"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:51:58.512884+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "port-765c5155",
+    "name": "TCP port scan",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "message",
+   "ts": "2026-08-03T07:52:04.548447+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "role": "assistant",
+    "text": "naabu found **2** open ports across **1** IPs."
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:52:04.548535+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "port-765c5155",
+    "status": "ok",
+    "result": "2 open"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "health.assessment",
+   "ts": "2026-08-03T07:52:04.548548+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "score": 0.5,
+    "signals": [
+     "port_scan"
+    ]
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:52:05.261898+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "wport-765c5155",
+    "status": "ok",
+    "result": "2 web ports responding"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "message",
+   "ts": "2026-08-03T07:52:05.262042+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "role": "assistant",
+    "text": "Discovered **2** additional HTTP services on non-standard web ports."
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:52:05.262186+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "tls-765c5155",
+    "name": "tlsx",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:52:05.263554+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "tls-765c5155",
+    "status": "empty",
+    "result": "0 certs analyzed"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:52:05.263706+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "whois-765c5155",
+    "name": "WHOIS lookup",
+    "target": "app.postud.io",
+    "category": "search"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:52:05.265784+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "whois-765c5155",
+    "status": "limited",
+    "result": " in "
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "health.assessment",
+   "ts": "2026-08-03T07:52:05.265879+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "score": 0.6,
+    "signals": [
+     "domain_intel"
+    ]
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:52:05.265963+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "sec-765c5155",
+    "name": "WAF + security headers",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:52:05.526064+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "sec-765c5155",
+    "status": "ok",
+    "result": "WAF: none detected, missing headers: 5"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "message",
+   "ts": "2026-08-03T07:52:05.526119+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "role": "assistant",
+    "text": "**Security Headers Audit:** Missing 5 key headers: X-Content-Type-Options, X-Frame-Options, Content-Security-Policy, Strict-Transport-Security, X-XSS-Protection."
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:52:05.526155+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "cf-765c5155",
+    "name": "Cloudflare bypass",
+    "target": "app.postud.io",
+    "category": "search"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:52:07.168541+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "cf-765c5155",
+    "status": "ok",
+    "result": "3 origin IPs"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:52:07.168626+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "kat-765c5155",
+    "name": "katana crawler",
+    "target": "app.postud.io",
+    "category": "search"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:52:07.309964+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "kat-765c5155",
+    "status": "empty",
+    "result": "0 endpoints"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "message",
+   "ts": "2026-08-03T07:52:07.310021+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "role": "assistant",
+    "text": "**Open ports detected \u2014 mapping exploit chains...**"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:52:07.310029+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "exploit-765c5155",
+    "name": "Exploit chain analysis",
+    "target": "app.postud.io",
+    "category": "search"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:52:08.156673+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "exploit-765c5155",
+    "status": "error",
+    "result": "2 services analyzed"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:52:08.156945+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "nuc-765c5155",
+    "name": "nuclei",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:52:08.424282+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "nuc-765c5155",
+    "status": "empty",
+    "result": "0 findings"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:52:08.424707+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "cvemap-765c5155",
+    "status": "ok",
+    "result": "0 version-matched CVEs"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:52:08.424731+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "vuln-765c5155",
+    "name": "vulnx CVE lookup",
+    "target": "app.postud.io",
+    "category": "search"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:52:08.424743+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "vuln-765c5155",
+    "status": "empty",
+    "result": "0 service CVEs"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "health.assessment",
+   "ts": "2026-08-03T07:52:08.424942+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "score": 0.4,
+    "signals": [
+     "exploit_chain_analysis"
+    ]
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "verification",
+   "ts": "2026-08-03T07:52:08.424953+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "kind": "recon",
+    "command": "Full recon on app.postud.io",
+    "passed": true
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:52:08.424965+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-wayback-765c5155",
+    "name": "Wayback Machine",
+    "target": "app.postud.io",
+    "category": "search"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:52:23.822964+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-wayback-765c5155",
+    "status": "empty",
+    "result": "0 historical URLs"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:52:23.823177+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-subs-765c5155",
+    "name": "subdomain brute-force",
+    "target": "app.postud.io",
+    "category": "search"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:52:58.889691+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-subs-765c5155",
+    "status": "empty",
+    "result": "0 brute-force subs"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:52:58.889904+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-tech-765c5155",
+    "name": "Tech fingerprint",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "message",
+   "ts": "2026-08-03T07:53:00.783260+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "role": "assistant",
+    "text": "Identified **4** technologies: Drift, Has XCTO, Tawk.to, nginx."
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:53:00.783377+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-tech-765c5155",
+    "status": "ok",
+    "result": "4 techs across 3 URLs"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "health.assessment",
+   "ts": "2026-08-03T07:53:00.783408+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "score": 0.7,
+    "signals": [
+     "tech_fingerprint"
+    ]
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:53:00.783505+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-dir-765c5155",
+    "name": "Directory busting",
+    "target": "app.postud.io",
+    "category": "search"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:56:21.577518+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-dir-765c5155",
+    "status": "empty",
+    "result": "0 paths found"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:56:22.318437+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-webapp-765c5155",
+    "name": "Webapp vulnerability scan",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:56:22.320380+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-webapp-765c5155",
+    "status": "empty",
+    "result": "0 app-level findings"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:56:22.320575+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-take-765c5155",
+    "name": "Subdomain takeover",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:56:22.327236+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-take-765c5155",
+    "status": "empty",
+    "result": "0 takeover checks"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:56:22.327463+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-cors-765c5155",
+    "name": "CORS check",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:56:25.860974+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-cors-765c5155",
+    "status": "empty",
+    "result": "0 CORS issues"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:56:25.861115+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-redir-765c5155",
+    "name": "Open redirect",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:56:31.830022+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-redir-765c5155",
+    "status": "empty",
+    "result": "0 redirect tests"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:56:31.830221+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-inj-765c5155",
+    "name": "Injection scan",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:56:31.831480+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-inj-765c5155",
+    "status": "empty",
+    "result": "0 injection tests"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:56:31.831553+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-sec-765c5155",
+    "name": "Secret scanning",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:56:32.673826+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-sec-765c5155",
+    "status": "empty",
+    "result": "0 secrets"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:56:32.673918+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-health-765c5155",
+    "name": "Health endpoint check",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:58:41.597841+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-health-765c5155",
+    "status": "empty",
+    "result": "0 exposed endpoints"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:58:41.598040+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-orig-765c5155",
+    "name": "Origin IP hunt",
+    "target": "app.postud.io",
+    "category": "search"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "message",
+   "ts": "2026-08-03T07:58:48.338076+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "role": "assistant",
+    "text": "**Origin IPs found**: 9 confirmed non-CDN origins likely exposing the real backend."
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:58:48.338248+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-orig-765c5155",
+    "status": "ok",
+    "result": "15 IPs classified"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:58:48.338375+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-login-765c5155",
+    "name": "Login rate-limit probe",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:58:50.116426+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-login-765c5155",
+    "status": "empty",
+    "result": "0 login probes"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:58:50.116523+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-sm-765c5155",
+    "name": "Source-map extraction",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:58:52.059134+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-sm-765c5155",
+    "status": "empty",
+    "result": "source-map extraction complete"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:58:52.059245+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-api-765c5155",
+    "name": "API discovery",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T07:58:52.059932+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-api-765c5155",
+    "status": "empty",
+    "result": "0 API endpoints"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T07:58:52.059983+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-wbsec-765c5155",
+    "name": "Wayback secret hunt",
+    "target": "app.postud.io",
+    "category": "search"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T08:00:17.400425+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-wbsec-765c5155",
+    "status": "empty",
+    "result": "wayback secret hunt complete"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T08:00:17.400495+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-creds-765c5155",
+    "name": "Default creds check",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T08:00:19.260007+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-creds-765c5155",
+    "status": "empty",
+    "result": "0 cred tests"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T08:00:19.260232+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-jwt-765c5155",
+    "name": "JWT/API auth check",
+    "target": "app.postud.io",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T08:00:19.261742+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "bb-jwt-765c5155",
+    "status": "empty",
+    "result": "0 auth tests"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "health.assessment",
+   "ts": "2026-08-03T08:00:19.261853+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "score": 0.8,
+    "signals": [
+     "bug_bounty_scan"
+    ]
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "message",
+   "ts": "2026-08-03T08:00:19.261934+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "role": "assistant_thinking",
+    "text": "Analyzing all findings for breach assessment..."
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T08:00:19.262133+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "ai-765c5155",
+    "name": "AI breach assessment",
+    "target": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.result",
+   "ts": "2026-08-03T08:00:22.807037+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "ai-765c5155",
+    "status": "error",
+    "result": "assessment complete"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "message",
+   "ts": "2026-08-03T08:00:22.807140+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "role": "assistant",
+    "text": "**Breach Assessment Complete**\n\nAI_ERROR: HTTP Error 530: <none>"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "tool.call",
+   "ts": "2026-08-03T08:00:22.807183+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "call_id": "ai0d-765c5155",
+    "name": "AI 0-day hypothesis",
+    "target": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf",
+    "category": "read"
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "edit",
+   "ts": "2026-08-03T08:00:22.808137+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "path": "app_postud_io_report_b2173299ce84.md",
+    "lines_added": 259,
+    "lines_removed": 0
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "verification",
+   "ts": "2026-08-03T08:00:22.808202+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "kind": "report",
+    "command": "generate report",
+    "passed": true
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "usage",
+   "ts": "2026-08-03T08:00:22.808236+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "interval": "cumulative",
+    "usage": {
+     "cost_usd": 0.05
+    }
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "run.finished",
+   "ts": "2026-08-03T08:00:22.808254+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "outcome": {
+     "status": "passed"
+    }
+   },
+   "task_id": "765c5155"
+  },
+  {
+   "type": "health.assessment",
+   "ts": "2026-08-03T08:00:22.808272+00:00",
+   "source": {
+    "pair": {
+     "harness": "mrboom",
+     "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+    }
+   },
+   "payload": {
+    "score": 1.0,
+    "recommendation": "none",
+    "signals": [
+     "completed"
+    ]
+   },
+   "task_id": "765c5155"
+  }
+ ],
+ "report_ready": true,
+ "report_filename": "app_postud_io_report_b2173299ce84.md",
+ "error": "",
+ "id": "765c5155",
+ "chat": [],
+ "dns": {
+  "A": [
+   "13.234.181.18",
+   "3.111.6.3",
+   "13.233.60.142"
+  ],
+  "MX": [
+   "13.234.181.18",
+   "3.111.6.3",
+   "13.233.60.142"
+  ],
+  "NS": [
+   "13.234.181.18",
+   "3.111.6.3",
+   "13.233.60.142"
+  ]
+ },
+ "subdomains": [
+  "app.postud.io",
+  "dev.postud.io",
+  "postud.io",
+  "support.postud.io",
+  "www.postud.io"
+ ],
+ "http": {
+  "https://app.postud.io/": {
+   "status": 200,
+   "server": "",
+   "title": "",
+   "tech": [],
+   "csp": "",
+   "cloudflare": false,
+   "aws": false
+  },
+  "https://dev.postud.io/": {
+   "status": 200,
+   "server": "",
+   "title": "",
+   "tech": [
+    "Has XCTO"
+   ],
+   "csp": "",
+   "cloudflare": false,
+   "aws": false
+  },
+  "http://postud.io/": {
+   "status": 301,
+   "server": "AmazonS3",
+   "title": "",
+   "tech": [
+    "AWS S3"
+   ],
+   "csp": "",
+   "cloudflare": false,
+   "aws": true
+  },
+  "http://support.postud.io/": {
+   "status": 404,
+   "server": "cloudflare",
+   "title": "",
+   "tech": [
+    "Cloudflare"
+   ],
+   "csp": "default-src 'self'; connect-src 'self' *.freshconnect.io/ *.freshsales.io/ *.freshworks.com/ *.freshdesk.com/ *.freshworksapi.com/ *.qualtrics.com/ *.freshdeskusercontent.com/ *.freshdeskusercontent-e",
+   "cloudflare": true,
+   "aws": false
+  },
+  "https://www.postud.io/": {
+   "status": 200,
+   "server": "nginx/1.29.8",
+   "title": "Postudio \u2014 AI-Powered Post-Production OS | Cloud Editing, Dubbing, Collaboration",
+   "tech": [
+    "Tawk.to",
+    "nginx",
+    "Drift"
+   ],
+   "csp": "",
+   "cloudflare": false,
+   "aws": false
+  },
+  "https://postud.io": {
+   "status": 301,
+   "server": "AmazonS3",
+   "title": "",
+   "tech": [
+    "Amazon CloudFront",
+    "Amazon S3",
+    "Amazon Web Services",
+    "HTTP/3"
+   ],
+   "csp": "",
+   "cloudflare": false,
+   "content_type": "",
+   "content_length": 0,
+   "cdn": "cloudfront",
+   "response_time": ""
+  },
+  "https://app.postud.io": {
+   "status": 307,
+   "server": "",
+   "title": "",
+   "tech": [],
+   "csp": "",
+   "cloudflare": false,
+   "content_type": "",
+   "content_length": 7,
+   "cdn": "aws",
+   "response_time": ""
+  },
+  "https://dev.postud.io": {
+   "status": 307,
+   "server": "",
+   "title": "",
+   "tech": [
+    "Amazon ALB",
+    "Amazon Web Services"
+   ],
+   "csp": "",
+   "cloudflare": false,
+   "content_type": "",
+   "content_length": 7,
+   "cdn": "aws",
+   "response_time": ""
+  },
+  "https://support.postud.io": {
+   "status": 404,
+   "server": "cloudflare",
+   "title": "-",
+   "tech": [
+    "Amazon S3",
+    "Amazon Web Services",
+    "Cloudflare",
+    "Cloudflare Bot Management",
+    "Envoy",
+    "HSTS"
+   ],
+   "csp": "",
+   "cloudflare": true,
+   "content_type": "text/html",
+   "content_length": 1127,
+   "cdn": "cloudflare",
+   "response_time": ""
+  },
+  "https://www.postud.io": {
+   "status": 200,
+   "server": "nginx/1.29.8",
+   "title": "Postudio \u2014 AI-Powered Post-Production OS | Cloud Editing, Dubbing, Collaboration",
+   "tech": [
+    "Drift",
+    "nginx",
+    "Tawk.to",
+    "Tailwind CSS",
+    "Calendly",
+    "Nginx:1.29.8"
+   ],
+   "csp": "",
+   "cloudflare": false,
+   "content_type": "text/html",
+   "content_length": 160331,
+   "cdn": "aws",
+   "response_time": ""
+  },
+  "https://app.postud.io:443/": {
+   "status": 200,
+   "server": "",
+   "title": "",
+   "tech": [],
+   "csp": "",
+   "cloudflare": false,
+   "aws": false,
+   "web_port": true
+  },
+  "http://app.postud.io:80/": {
+   "status": 200,
+   "server": "",
+   "title": "",
+   "tech": [],
+   "csp": "",
+   "cloudflare": false,
+   "aws": false,
+   "web_port": true
+  }
+ },
+ "csp": {
+  "s3_buckets": [],
+  "internal_urls": [],
+  "third_party": []
+ },
+ "clientside_findings": [
+  {
+   "id": "6d11e90e",
+   "severity": "MEDIUM",
+   "score": 48,
+   "title": "Missing Content-Security-Policy",
+   "asset": "https://13.233.60.142/login/",
+   "tool": "clientside",
+   "cwe": "CWE-693",
+   "evidence": "No CSP header returned",
+   "exploitable": false,
+   "fix": "Set a Content-Security-Policy restricting script-src and object-src.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "c77eeb75",
+   "severity": "LOW",
+   "score": 24,
+   "title": "No clickjacking protection",
+   "asset": "https://13.233.60.142/login/",
+   "tool": "clientside",
+   "cwe": "CWE-1021",
+   "evidence": "Missing X-Frame-Options / frame-ancestors",
+   "exploitable": false,
+   "fix": "Set X-Frame-Options: DENY or CSP frame-ancestors 'none'.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "a9aa0e5a",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing Referrer-Policy",
+   "asset": "https://13.233.60.142/login/",
+   "tool": "clientside",
+   "cwe": "CWE-200",
+   "evidence": "No Referrer-Policy header",
+   "exploitable": false,
+   "fix": "Set Referrer-Policy: strict-origin-when-cross-origin.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "88a1f2d6",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing HSTS",
+   "asset": "https://13.233.60.142/login/",
+   "tool": "clientside",
+   "cwe": "CWE-319",
+   "evidence": "No Strict-Transport-Security header",
+   "exploitable": false,
+   "fix": "Set Strict-Transport-Security with a long max-age.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "10af3476",
+   "severity": "MEDIUM",
+   "score": 48,
+   "title": "Cookie hardening: AWSALB",
+   "asset": "https://13.126.75.174/login/",
+   "tool": "clientside",
+   "cwe": "CWE-614",
+   "evidence": "AWSALB=j1+MZseUExxJiECeJqo2ifkocK5iTPKwJM7pq8IN3wi6M4B5tMrXkalHI1QXOQuZ+/ZhJGPhxa4eNEwl9ooKOSdxj2VjejjKj5ZL9rvoDyxlmr3fqo/L4U2IAR+v \u2192 Secure flag missing, HttpOnly flag missing, SameSite attribute missing",
+   "exploitable": false,
+   "fix": "Set AWSALB with Secure; HttpOnly; SameSite=Lax (or Strict).",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "ebaf667e",
+   "severity": "MEDIUM",
+   "score": 48,
+   "title": "Missing Content-Security-Policy",
+   "asset": "https://13.126.75.174/login/",
+   "tool": "clientside",
+   "cwe": "CWE-693",
+   "evidence": "No CSP header returned",
+   "exploitable": false,
+   "fix": "Set a Content-Security-Policy restricting script-src and object-src.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "a1cb8edd",
+   "severity": "LOW",
+   "score": 24,
+   "title": "No clickjacking protection",
+   "asset": "https://13.126.75.174/login/",
+   "tool": "clientside",
+   "cwe": "CWE-1021",
+   "evidence": "Missing X-Frame-Options / frame-ancestors",
+   "exploitable": false,
+   "fix": "Set X-Frame-Options: DENY or CSP frame-ancestors 'none'.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "dc8f544b",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing Referrer-Policy",
+   "asset": "https://13.126.75.174/login/",
+   "tool": "clientside",
+   "cwe": "CWE-200",
+   "evidence": "No Referrer-Policy header",
+   "exploitable": false,
+   "fix": "Set Referrer-Policy: strict-origin-when-cross-origin.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "6b33bc4b",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing HSTS",
+   "asset": "https://13.126.75.174/login/",
+   "tool": "clientside",
+   "cwe": "CWE-319",
+   "evidence": "No Strict-Transport-Security header",
+   "exploitable": false,
+   "fix": "Set Strict-Transport-Security with a long max-age.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "3f104188",
+   "severity": "MEDIUM",
+   "score": 48,
+   "title": "Missing Content-Security-Policy",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-693",
+   "evidence": "No CSP header returned",
+   "exploitable": false,
+   "fix": "Set a Content-Security-Policy restricting script-src and object-src.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "1dd7ee4f",
+   "severity": "LOW",
+   "score": 24,
+   "title": "No clickjacking protection",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-1021",
+   "evidence": "Missing X-Frame-Options / frame-ancestors",
+   "exploitable": false,
+   "fix": "Set X-Frame-Options: DENY or CSP frame-ancestors 'none'.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "22d68993",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing Referrer-Policy",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-200",
+   "evidence": "No Referrer-Policy header",
+   "exploitable": false,
+   "fix": "Set Referrer-Policy: strict-origin-when-cross-origin.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "2da294ce",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing HSTS",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-319",
+   "evidence": "No Strict-Transport-Security header",
+   "exploitable": false,
+   "fix": "Set Strict-Transport-Security with a long max-age.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "2100ec13",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://assets.calendly.com/assets/external/widget.css",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "d72a75f5",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://assets.calendly.com/assets/external/widget.js",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "73d541cb",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://cdn.tailwindcss.com",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "d7653f18",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://dev.postud.io/images/auth/logo-lg-left.svg",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "e40e1e4f",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://dev.postud.io/images/common/sidebar-logo.svg",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "2a22a90e",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://fonts.googleapis.com/css2",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "6a2177d4",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://www.postud.io/",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "0b94b72e",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Scripts loaded without SRI",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-353",
+   "evidence": "2/2 external scripts lack integrity= (e.g. https://cdn.tailwindcss.com)",
+   "exploitable": false,
+   "fix": "Add integrity+SRI to all third-party scripts.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "f8787d0f",
+   "severity": "MEDIUM",
+   "score": 48,
+   "title": "Missing Content-Security-Policy",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-693",
+   "evidence": "No CSP header returned",
+   "exploitable": false,
+   "fix": "Set a Content-Security-Policy restricting script-src and object-src.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "bc5355b2",
+   "severity": "LOW",
+   "score": 24,
+   "title": "No clickjacking protection",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-1021",
+   "evidence": "Missing X-Frame-Options / frame-ancestors",
+   "exploitable": false,
+   "fix": "Set X-Frame-Options: DENY or CSP frame-ancestors 'none'.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "ae9bf59d",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing Referrer-Policy",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-200",
+   "evidence": "No Referrer-Policy header",
+   "exploitable": false,
+   "fix": "Set Referrer-Policy: strict-origin-when-cross-origin.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "2f8d5d37",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing HSTS",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-319",
+   "evidence": "No Strict-Transport-Security header",
+   "exploitable": false,
+   "fix": "Set Strict-Transport-Security with a long max-age.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "6dcc28b6",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://assets.calendly.com/assets/external/widget.css",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "d70f1e4e",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://assets.calendly.com/assets/external/widget.js",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "b2b14081",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://cdn.tailwindcss.com",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "a46d911c",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://dev.postud.io/images/auth/logo-lg-left.svg",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "647a6c60",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://dev.postud.io/images/common/sidebar-logo.svg",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "f834e4bc",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://fonts.googleapis.com/css2",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "5f8bdcd6",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://www.postud.io/",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "145fe63b",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Scripts loaded without SRI",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-353",
+   "evidence": "2/2 external scripts lack integrity= (e.g. https://cdn.tailwindcss.com)",
+   "exploitable": false,
+   "fix": "Add integrity+SRI to all third-party scripts.",
+   "retest": "\u2014",
+   "proof": null
+  }
+ ],
+ "ports": {
+  "app.postud.io": [
+   443,
+   80
+  ]
+ },
+ "whois": {
+  "registrar": "",
+  "org": "",
+  "country": "",
+  "emails": [],
+  "nameservers": []
+ },
+ "missing_security_headers": [
+  "X-Content-Type-Options",
+  "X-Frame-Options",
+  "Content-Security-Policy",
+  "Strict-Transport-Security",
+  "X-XSS-Protection"
+ ],
+ "origins": [
+  {
+   "subdomain": "app.postud.io",
+   "ip": "13.233.60.142"
+  },
+  {
+   "subdomain": "v1.app.postud.io",
+   "ip": "35.154.156.6"
+  },
+  {
+   "subdomain": "v2.app.postud.io",
+   "ip": "65.1.252.165"
+  }
+ ],
+ "bb_tech": {
+  "https://dev.postud.io/": [
+   "Has XCTO"
+  ],
+  "https://www.postud.io/": [
+   "Drift",
+   "Tawk.to",
+   "nginx"
+  ],
+  "https://www.postud.io": [
+   "Drift",
+   "Tawk.to",
+   "nginx"
+  ]
+ },
+ "bb_origins": [
+  {
+   "ip": "13.126.75.174",
+   "host": "app.postud.io",
+   "cdn": "",
+   "is_cdn": false,
+   "confirmed": true
+  },
+  {
+   "ip": "13.127.18.72",
+   "host": "app.postud.io",
+   "cdn": "",
+   "is_cdn": false,
+   "confirmed": true
+  },
+  {
+   "ip": "13.203.115.171",
+   "host": "app.postud.io",
+   "cdn": "",
+   "is_cdn": false,
+   "confirmed": true
+  },
+  {
+   "ip": "13.206.10.220",
+   "host": "app.postud.io",
+   "cdn": "",
+   "is_cdn": false,
+   "confirmed": true
+  },
+  {
+   "ip": "13.206.224.72",
+   "host": "app.postud.io",
+   "cdn": "",
+   "is_cdn": false,
+   "confirmed": true
+  },
+  {
+   "ip": "13.233.60.142",
+   "host": "app.postud.io",
+   "cdn": "",
+   "is_cdn": false,
+   "confirmed": true
+  },
+  {
+   "ip": "13.234.181.18",
+   "host": "app.postud.io",
+   "cdn": "",
+   "is_cdn": false,
+   "confirmed": true
+  },
+  {
+   "ip": "13.234.97.23",
+   "host": "app.postud.io",
+   "cdn": "",
+   "is_cdn": false,
+   "confirmed": true
+  },
+  {
+   "ip": "162.159.140.147",
+   "cdn": "cloudflare",
+   "is_cdn": true,
+   "confirmed": false
+  },
+  {
+   "ip": "172.66.0.145",
+   "cdn": "cloudflare",
+   "is_cdn": true,
+   "confirmed": false
+  },
+  {
+   "ip": "3.111.6.3",
+   "host": "app.postud.io",
+   "cdn": "",
+   "is_cdn": false,
+   "confirmed": true
+  },
+  {
+   "ip": "99.86.18.104",
+   "cdn": "",
+   "is_cdn": false,
+   "confirmed": false
+  },
+  {
+   "ip": "99.86.18.13",
+   "cdn": "",
+   "is_cdn": false,
+   "confirmed": false
+  },
+  {
+   "ip": "99.86.18.39",
+   "cdn": "",
+   "is_cdn": false,
+   "confirmed": false
+  },
+  {
+   "ip": "99.86.18.79",
+   "cdn": "",
+   "is_cdn": false,
+   "confirmed": false
+  }
+ ],
+ "ai_analysis": "AI_ERROR: HTTP Error 530: <none>",
+ "findings": [
+  {
+   "id": "6d11e90e",
+   "severity": "MEDIUM",
+   "score": 48,
+   "title": "Missing Content-Security-Policy",
+   "asset": "https://13.233.60.142/login/",
+   "tool": "clientside",
+   "cwe": "CWE-693",
+   "evidence": "No CSP header returned",
+   "exploitable": false,
+   "fix": "Set a Content-Security-Policy restricting script-src and object-src.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "c77eeb75",
+   "severity": "LOW",
+   "score": 24,
+   "title": "No clickjacking protection",
+   "asset": "https://13.233.60.142/login/",
+   "tool": "clientside",
+   "cwe": "CWE-1021",
+   "evidence": "Missing X-Frame-Options / frame-ancestors",
+   "exploitable": false,
+   "fix": "Set X-Frame-Options: DENY or CSP frame-ancestors 'none'.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "a9aa0e5a",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing Referrer-Policy",
+   "asset": "https://13.233.60.142/login/",
+   "tool": "clientside",
+   "cwe": "CWE-200",
+   "evidence": "No Referrer-Policy header",
+   "exploitable": false,
+   "fix": "Set Referrer-Policy: strict-origin-when-cross-origin.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "88a1f2d6",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing HSTS",
+   "asset": "https://13.233.60.142/login/",
+   "tool": "clientside",
+   "cwe": "CWE-319",
+   "evidence": "No Strict-Transport-Security header",
+   "exploitable": false,
+   "fix": "Set Strict-Transport-Security with a long max-age.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "10af3476",
+   "severity": "MEDIUM",
+   "score": 48,
+   "title": "Cookie hardening: AWSALB",
+   "asset": "https://13.126.75.174/login/",
+   "tool": "clientside",
+   "cwe": "CWE-614",
+   "evidence": "AWSALB=j1+MZseUExxJiECeJqo2ifkocK5iTPKwJM7pq8IN3wi6M4B5tMrXkalHI1QXOQuZ+/ZhJGPhxa4eNEwl9ooKOSdxj2VjejjKj5ZL9rvoDyxlmr3fqo/L4U2IAR+v \u2192 Secure flag missing, HttpOnly flag missing, SameSite attribute missing",
+   "exploitable": false,
+   "fix": "Set AWSALB with Secure; HttpOnly; SameSite=Lax (or Strict).",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "ebaf667e",
+   "severity": "MEDIUM",
+   "score": 48,
+   "title": "Missing Content-Security-Policy",
+   "asset": "https://13.126.75.174/login/",
+   "tool": "clientside",
+   "cwe": "CWE-693",
+   "evidence": "No CSP header returned",
+   "exploitable": false,
+   "fix": "Set a Content-Security-Policy restricting script-src and object-src.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "a1cb8edd",
+   "severity": "LOW",
+   "score": 24,
+   "title": "No clickjacking protection",
+   "asset": "https://13.126.75.174/login/",
+   "tool": "clientside",
+   "cwe": "CWE-1021",
+   "evidence": "Missing X-Frame-Options / frame-ancestors",
+   "exploitable": false,
+   "fix": "Set X-Frame-Options: DENY or CSP frame-ancestors 'none'.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "dc8f544b",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing Referrer-Policy",
+   "asset": "https://13.126.75.174/login/",
+   "tool": "clientside",
+   "cwe": "CWE-200",
+   "evidence": "No Referrer-Policy header",
+   "exploitable": false,
+   "fix": "Set Referrer-Policy: strict-origin-when-cross-origin.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "6b33bc4b",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing HSTS",
+   "asset": "https://13.126.75.174/login/",
+   "tool": "clientside",
+   "cwe": "CWE-319",
+   "evidence": "No Strict-Transport-Security header",
+   "exploitable": false,
+   "fix": "Set Strict-Transport-Security with a long max-age.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "3f104188",
+   "severity": "MEDIUM",
+   "score": 48,
+   "title": "Missing Content-Security-Policy",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-693",
+   "evidence": "No CSP header returned",
+   "exploitable": false,
+   "fix": "Set a Content-Security-Policy restricting script-src and object-src.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "1dd7ee4f",
+   "severity": "LOW",
+   "score": 24,
+   "title": "No clickjacking protection",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-1021",
+   "evidence": "Missing X-Frame-Options / frame-ancestors",
+   "exploitable": false,
+   "fix": "Set X-Frame-Options: DENY or CSP frame-ancestors 'none'.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "22d68993",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing Referrer-Policy",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-200",
+   "evidence": "No Referrer-Policy header",
+   "exploitable": false,
+   "fix": "Set Referrer-Policy: strict-origin-when-cross-origin.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "2da294ce",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing HSTS",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-319",
+   "evidence": "No Strict-Transport-Security header",
+   "exploitable": false,
+   "fix": "Set Strict-Transport-Security with a long max-age.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "2100ec13",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://assets.calendly.com/assets/external/widget.css",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "d72a75f5",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://assets.calendly.com/assets/external/widget.js",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "73d541cb",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://cdn.tailwindcss.com",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "d7653f18",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://dev.postud.io/images/auth/logo-lg-left.svg",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "e40e1e4f",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://dev.postud.io/images/common/sidebar-logo.svg",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "2a22a90e",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://fonts.googleapis.com/css2",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "6a2177d4",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://www.postud.io/",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "0b94b72e",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Scripts loaded without SRI",
+   "asset": "https://13.127.18.72/",
+   "tool": "clientside",
+   "cwe": "CWE-353",
+   "evidence": "2/2 external scripts lack integrity= (e.g. https://cdn.tailwindcss.com)",
+   "exploitable": false,
+   "fix": "Add integrity+SRI to all third-party scripts.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "f8787d0f",
+   "severity": "MEDIUM",
+   "score": 48,
+   "title": "Missing Content-Security-Policy",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-693",
+   "evidence": "No CSP header returned",
+   "exploitable": false,
+   "fix": "Set a Content-Security-Policy restricting script-src and object-src.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "bc5355b2",
+   "severity": "LOW",
+   "score": 24,
+   "title": "No clickjacking protection",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-1021",
+   "evidence": "Missing X-Frame-Options / frame-ancestors",
+   "exploitable": false,
+   "fix": "Set X-Frame-Options: DENY or CSP frame-ancestors 'none'.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "ae9bf59d",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing Referrer-Policy",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-200",
+   "evidence": "No Referrer-Policy header",
+   "exploitable": false,
+   "fix": "Set Referrer-Policy: strict-origin-when-cross-origin.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "2f8d5d37",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Missing HSTS",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-319",
+   "evidence": "No Strict-Transport-Security header",
+   "exploitable": false,
+   "fix": "Set Strict-Transport-Security with a long max-age.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "6dcc28b6",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://assets.calendly.com/assets/external/widget.css",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "d70f1e4e",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://assets.calendly.com/assets/external/widget.js",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "b2b14081",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://cdn.tailwindcss.com",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "a46d911c",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://dev.postud.io/images/auth/logo-lg-left.svg",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "647a6c60",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://dev.postud.io/images/common/sidebar-logo.svg",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "f834e4bc",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://fonts.googleapis.com/css2",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "5f8bdcd6",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Third-party resource loaded",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-829",
+   "evidence": "https://www.postud.io/",
+   "exploitable": false,
+   "fix": "Inventory external dependencies; pin + integrity-check and review their supply chain.",
+   "retest": "\u2014",
+   "proof": null
+  },
+  {
+   "id": "145fe63b",
+   "severity": "LOW",
+   "score": 24,
+   "title": "Scripts loaded without SRI",
+   "asset": "https://13.127.18.72",
+   "tool": "clientside",
+   "cwe": "CWE-353",
+   "evidence": "2/2 external scripts lack integrity= (e.g. https://cdn.tailwindcss.com)",
+   "exploitable": false,
+   "fix": "Add integrity+SRI to all third-party scripts.",
+   "retest": "\u2014",
+   "proof": null
+  }
+ ]
+}

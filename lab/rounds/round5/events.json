@@ -1,0 +1,1931 @@
+[
+ {
+  "type": "routing.decided",
+  "ts": "2026-08-03T08:01:30.499007+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "chosen": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   },
+   "predicted_success": 0.85,
+   "why": "Starting DNS recon on 192.168.1.46",
+   "basis": "init",
+   "features": {
+    "predicted_success": 0.85,
+    "predicted_cost_usd": 0.02
+   },
+   "alternatives": []
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:01:30.499084+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant",
+   "text": "Starting reconnaissance against **192.168.1.46**. Phase 1: DNS enumeration."
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "verification",
+  "ts": "2026-08-03T08:01:30.499412+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "kind": "dns",
+   "command": "DNS lookup 192.168.1.46",
+   "passed": true
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "usage",
+  "ts": "2026-08-03T08:01:30.499466+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "interval": "cumulative",
+   "usage": {
+    "cost_usd": 0.01
+   }
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:01:30.499535+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant_thinking",
+   "text": "Running ProjectDiscovery subfinder and crt.sh for subdomain enumeration..."
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:02:00.538057+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant_thinking",
+   "text": "Falling back to crt.sh + wordlist enumeration..."
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:03:01.458613+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "sub-6636b391",
+   "name": "subfinder + crt.sh",
+   "target": "192.168.1.46",
+   "category": "search"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:03:01.758760+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "sub-6636b391",
+   "status": "ok",
+   "result": "2 subdomains"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "health.assessment",
+  "ts": "2026-08-03T08:03:01.758824+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "score": 0.7,
+   "signals": [
+    "subdomain_discovery"
+   ]
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:03:01.758869+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant_thinking",
+   "text": "Running PD dnsx, asnmap, and uncover for deeper discovery..."
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "health.assessment",
+  "ts": "2026-08-03T08:03:02.518555+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "score": 0.75,
+   "signals": [
+    "pd_dns_asn"
+   ]
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:03:02.518626+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant",
+   "text": "Discovered **2 subdomains**. Now probing for live HTTP services."
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:03:02.518648+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "http-6636b391",
+   "name": "HTTP probe",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:03:22.264119+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "http-6636b391",
+   "status": "ok",
+   "result": "3 live"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "edit",
+  "ts": "2026-08-03T08:03:22.264160+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "path": "192.168.1.46/http",
+   "lines_added": 3,
+   "lines_removed": 0
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "health.assessment",
+  "ts": "2026-08-03T08:03:22.264182+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "score": 0.8,
+   "signals": [
+    "csp_analysis"
+   ]
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:03:22.264192+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant_thinking",
+   "text": "Scanning JavaScript bundles for API endpoints, secrets, and AWS keys..."
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:03:22.264197+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "js-6636b391",
+   "name": "JS bundle analysis",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:03:42.297131+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "js-6636b391",
+   "status": "ok",
+   "result": "0 endpoints, 0 secrets"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:03:42.297186+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "cs-6636b391",
+   "name": "clientside assessment",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:03:52.785710+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "cs-6636b391",
+   "status": "ok",
+   "result": "4 client-side findings"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:03:52.785826+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant",
+   "text": "Client-side assessment found **4** issues (1 medium+): cookies/CSP/DOM-XSS."
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:03:52.785881+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "urlf-6636b391",
+   "name": "urlfinder",
+   "target": "192.168.1.46",
+   "category": "search"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:03:52.785920+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "urlf-6636b391",
+   "status": "empty",
+   "result": "0 URLs"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:03:52.785957+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "port-6636b391",
+   "name": "TCP port scan",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:03:58.681507+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant",
+   "text": "naabu found **5** open ports across **1** IPs."
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:03:58.681573+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "port-6636b391",
+   "status": "ok",
+   "result": "5 open"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "health.assessment",
+  "ts": "2026-08-03T08:03:58.681586+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "score": 0.5,
+   "signals": [
+    "port_scan"
+   ]
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:04:28.779307+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "tls-6636b391",
+   "name": "tlsx",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:04:28.780371+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "tls-6636b391",
+   "status": "empty",
+   "result": "0 certs analyzed"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:04:28.780479+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "whois-6636b391",
+   "name": "WHOIS lookup",
+   "target": "192.168.1.46",
+   "category": "search"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:04:28.781632+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "whois-6636b391",
+   "status": "limited",
+   "result": " in "
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "health.assessment",
+  "ts": "2026-08-03T08:04:28.781683+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "score": 0.6,
+   "signals": [
+    "domain_intel"
+   ]
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:04:28.781727+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "sec-6636b391",
+   "name": "WAF + security headers",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:04:29.870842+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "sec-6636b391",
+   "status": "ok",
+   "result": "WAF: none detected, missing headers: 5"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:04:29.870877+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant",
+   "text": "**Security Headers Audit:** Missing 5 key headers: X-Content-Type-Options, X-Frame-Options, Content-Security-Policy, Strict-Transport-Security, X-XSS-Protection."
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:04:29.870887+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "cf-6636b391",
+   "name": "Cloudflare bypass",
+   "target": "192.168.1.46",
+   "category": "search"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:04:43.500847+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "cf-6636b391",
+   "status": "ok",
+   "result": "0 origin IPs"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:04:43.500975+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "kat-6636b391",
+   "name": "katana crawler",
+   "target": "192.168.1.46",
+   "category": "search"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:04:43.612963+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "kat-6636b391",
+   "status": "empty",
+   "result": "0 endpoints"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:04:43.613021+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant",
+   "text": "**Open ports detected \u2014 mapping exploit chains...**"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:04:43.613030+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "exploit-6636b391",
+   "name": "Exploit chain analysis",
+   "target": "192.168.1.46",
+   "category": "search"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:04:44.272236+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "exploit-6636b391",
+   "status": "error",
+   "result": "5 services analyzed"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:04:44.272403+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "nuc-6636b391",
+   "name": "nuclei",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:04:44.495871+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "nuc-6636b391",
+   "status": "empty",
+   "result": "0 findings"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:04:44.495939+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "cvemap-6636b391",
+   "status": "ok",
+   "result": "0 version-matched CVEs"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:04:44.495953+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "vuln-6636b391",
+   "name": "vulnx CVE lookup",
+   "target": "192.168.1.46",
+   "category": "search"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:04:44.496152+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "vuln-6636b391",
+   "status": "empty",
+   "result": "0 service CVEs"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:04:44.496378+00:00",
+  "source": {
+   "pair": {
+    "harness": "skills",
+    "model": "skill-engine"
+   }
+  },
+  "payload": {
+   "call_id": "skill-sshp22-6636b391",
+   "name": "skill: sshp22",
+   "target": "192.168.1.46:22",
+   "category": "exploit"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:05:15.726616+00:00",
+  "source": {
+   "pair": {
+    "harness": "skills",
+    "model": "skill-engine"
+   }
+  },
+  "payload": {
+   "call_id": "skill-sshp22-6636b391",
+   "status": "empty",
+   "result": "skill sshp22 failed"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:05:15.726696+00:00",
+  "source": {
+   "pair": {
+    "harness": "skills",
+    "model": "skill-engine"
+   }
+  },
+  "payload": {
+   "call_id": "skill-sshp22_cbdc-6636b391",
+   "name": "skill: sshp22_cbdc",
+   "target": "192.168.1.46:22",
+   "category": "exploit"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:05:15.940126+00:00",
+  "source": {
+   "pair": {
+    "harness": "skills",
+    "model": "skill-engine"
+   }
+  },
+  "payload": {
+   "call_id": "skill-sshp22_cbdc-6636b391",
+   "status": "empty",
+   "result": "skill sshp22_cbdc failed"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:05:15.940175+00:00",
+  "source": {
+   "pair": {
+    "harness": "skills",
+    "model": "skill-engine"
+   }
+  },
+  "payload": {
+   "call_id": "skill-sshp22_b792-6636b391",
+   "name": "skill: sshp22_b792",
+   "target": "192.168.1.46:22",
+   "category": "exploit"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:05:15.995335+00:00",
+  "source": {
+   "pair": {
+    "harness": "skills",
+    "model": "skill-engine"
+   }
+  },
+  "payload": {
+   "call_id": "skill-sshp22_b792-6636b391",
+   "status": "ok",
+   "result": "skill sshp22_b792 succeeded: SSH service is running on 192.168.1.46:22"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:05:15.995463+00:00",
+  "source": {
+   "pair": {
+    "harness": "skills",
+    "model": "skill-engine"
+   }
+  },
+  "payload": {
+   "call_id": "skill-postgresqlp5432-6636b391",
+   "name": "skill: postgresqlp5432",
+   "target": "192.168.1.46:5432",
+   "category": "exploit"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:05:46.078278+00:00",
+  "source": {
+   "pair": {
+    "harness": "skills",
+    "model": "skill-engine"
+   }
+  },
+  "payload": {
+   "call_id": "skill-postgresqlp5432-6636b391",
+   "status": "empty",
+   "result": "skill postgresqlp5432 failed"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:05:46.078321+00:00",
+  "source": {
+   "pair": {
+    "harness": "skills",
+    "model": "skill-engine"
+   }
+  },
+  "payload": {
+   "call_id": "skill-postgresqlp5432_3af3-6636b391",
+   "name": "skill: postgresqlp5432_3af3",
+   "target": "192.168.1.46:5432",
+   "category": "exploit"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:06:26.252000+00:00",
+  "source": {
+   "pair": {
+    "harness": "skills",
+    "model": "skill-engine"
+   }
+  },
+  "payload": {
+   "call_id": "skill-postgresqlp5432_3af3-6636b391",
+   "status": "empty",
+   "result": "skill postgresqlp5432_3af3 failed"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:06:26.252092+00:00",
+  "source": {
+   "pair": {
+    "harness": "skills",
+    "model": "skill-engine"
+   }
+  },
+  "payload": {
+   "call_id": "skill-postgresqlp5432_0894-6636b391",
+   "name": "skill: postgresqlp5432_0894",
+   "target": "192.168.1.46:5432",
+   "category": "exploit"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:06:37.699470+00:00",
+  "source": {
+   "pair": {
+    "harness": "skills",
+    "model": "skill-engine"
+   }
+  },
+  "payload": {
+   "call_id": "skill-postgresqlp5432_0894-6636b391",
+   "status": "empty",
+   "result": "skill postgresqlp5432_0894 failed"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:06:37.699633+00:00",
+  "source": {
+   "pair": {
+    "harness": "skills",
+    "model": "skill-engine"
+   }
+  },
+  "payload": {
+   "role": "assistant_thinking",
+   "text": "No existing skill works for PostgreSQL on 192.168.1.46:5432. Asking AI to craft a new exploit..."
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:06:39.115590+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant",
+   "text": "\ud83e\udde0 **Skill System**: 0 new skills created, 1 successful exploits from skills. Total skills: 12."
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "health.assessment",
+  "ts": "2026-08-03T08:06:39.115689+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "score": 0.4,
+   "signals": [
+    "exploit_chain_analysis"
+   ]
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "verification",
+  "ts": "2026-08-03T08:06:39.115723+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "kind": "recon",
+   "command": "Full recon on 192.168.1.46",
+   "passed": true
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:06:39.115792+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-wayback-6636b391",
+   "name": "Wayback Machine",
+   "target": "192.168.1.46",
+   "category": "search"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:06:46.845661+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-wayback-6636b391",
+   "status": "empty",
+   "result": "0 historical URLs"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:06:46.845834+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-subs-6636b391",
+   "name": "subdomain brute-force",
+   "target": "192.168.1.46",
+   "category": "search"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:07:19.903571+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-subs-6636b391",
+   "status": "empty",
+   "result": "0 brute-force subs"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:07:19.903867+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-tech-6636b391",
+   "name": "Tech fingerprint",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:07:29.105258+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-tech-6636b391",
+   "status": "empty",
+   "result": "0 techs across 0 URLs"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "health.assessment",
+  "ts": "2026-08-03T08:07:29.105352+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "score": 0.5,
+   "signals": [
+    "tech_fingerprint"
+   ]
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:07:29.105428+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-dir-6636b391",
+   "name": "Directory busting",
+   "target": "192.168.1.46",
+   "category": "search"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:08:13.336712+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant",
+   "text": "Directory busting found **5** accessible paths across 1 targets."
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:13.336827+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-dir-6636b391",
+   "status": "ok",
+   "result": "5 paths found"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:13.337417+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-webapp-6636b391",
+   "name": "Webapp vulnerability scan",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:08:14.744237+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant",
+   "text": "**HIGH**: Path Traversal at http://192.168.1.46/files/download?file=%2Fetc%2Fpasswd (sensitive content marker in response (/etc/passwd))"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:08:14.744272+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant",
+   "text": "**CRITICAL**: SQL Injection (Auth Bypass) at http://192.168.1.46/login (login bypassed with SQLi payload)"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:08:14.744281+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant",
+   "text": "**CRITICAL**: Command Injection at http://192.168.1.46/tools/diagnostics?host=%7Cid (RCE marker 'uid=' in response)"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:08:14.744287+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant",
+   "text": "**HIGH**: SSRF at http://192.168.1.46/tools/fetch-preview?url=http%3A%2F%2Finternal-api%3A8443%2Fapi%2Fv1%2Fconfig (internal service content marker in response)"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:14.744295+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-webapp-6636b391",
+   "status": "ok",
+   "result": "4 app-level findings"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:14.744316+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-take-6636b391",
+   "name": "Subdomain takeover",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:14.745367+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-take-6636b391",
+   "status": "empty",
+   "result": "0 takeover checks"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:14.745399+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-cors-6636b391",
+   "name": "CORS check",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:14.883369+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-cors-6636b391",
+   "status": "empty",
+   "result": "0 CORS issues"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:14.883443+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-redir-6636b391",
+   "name": "Open redirect",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:15.083780+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-redir-6636b391",
+   "status": "empty",
+   "result": "0 redirect tests"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:15.083984+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-inj-6636b391",
+   "name": "Injection scan",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:15.085081+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-inj-6636b391",
+   "status": "empty",
+   "result": "0 injection tests"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:15.085243+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-sec-6636b391",
+   "name": "Secret scanning",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:15.122255+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-sec-6636b391",
+   "status": "empty",
+   "result": "0 secrets"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:15.122368+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-health-6636b391",
+   "name": "Health endpoint check",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:15.719928+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-health-6636b391",
+   "status": "empty",
+   "result": "0 exposed endpoints"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:15.720042+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-orig-6636b391",
+   "name": "Origin IP hunt",
+   "target": "192.168.1.46",
+   "category": "search"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:08:15.865198+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant",
+   "text": "**Origin IPs found**: 1 confirmed non-CDN origins likely exposing the real backend."
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:15.865317+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-orig-6636b391",
+   "status": "ok",
+   "result": "2 IPs classified"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:15.865464+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-login-6636b391",
+   "name": "Login rate-limit probe",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:15.897404+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-login-6636b391",
+   "status": "empty",
+   "result": "0 login probes"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:15.897470+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-sm-6636b391",
+   "name": "Source-map extraction",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:15.935699+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-sm-6636b391",
+   "status": "empty",
+   "result": "source-map extraction complete"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:15.935829+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-api-6636b391",
+   "name": "API discovery",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:15.936710+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-api-6636b391",
+   "status": "empty",
+   "result": "0 API endpoints"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:15.936926+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-wbsec-6636b391",
+   "name": "Wayback secret hunt",
+   "target": "192.168.1.46",
+   "category": "search"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:31.242301+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-wbsec-6636b391",
+   "status": "ok",
+   "result": "wayback secret hunt complete"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:31.242436+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-creds-6636b391",
+   "name": "Default creds check",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:41.263018+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-creds-6636b391",
+   "status": "empty",
+   "result": "0 cred tests"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:41.263080+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-jwt-6636b391",
+   "name": "JWT/API auth check",
+   "target": "192.168.1.46",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:41.263372+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "bb-jwt-6636b391",
+   "status": "empty",
+   "result": "0 auth tests"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "health.assessment",
+  "ts": "2026-08-03T08:08:41.263385+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "score": 0.8,
+   "signals": [
+    "bug_bounty_scan"
+   ]
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:08:41.263399+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant_thinking",
+   "text": "Analyzing all findings for breach assessment..."
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:41.263440+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "ai-6636b391",
+   "name": "AI breach assessment",
+   "target": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.result",
+  "ts": "2026-08-03T08:08:44.664926+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "ai-6636b391",
+   "status": "error",
+   "result": "assessment complete"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "message",
+  "ts": "2026-08-03T08:08:44.665021+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "role": "assistant",
+   "text": "**Breach Assessment Complete**\n\nAI_ERROR: HTTP Error 530: <none>"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "tool.call",
+  "ts": "2026-08-03T08:08:44.665044+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "call_id": "ai0d-6636b391",
+   "name": "AI 0-day hypothesis",
+   "target": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf",
+   "category": "read"
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "edit",
+  "ts": "2026-08-03T08:08:44.665848+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "path": "192_168_1_46_report_9b848d1aa2c7.md",
+   "lines_added": 161,
+   "lines_removed": 0
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "verification",
+  "ts": "2026-08-03T08:08:44.665880+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "kind": "report",
+   "command": "generate report",
+   "passed": true
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "usage",
+  "ts": "2026-08-03T08:08:44.665902+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "interval": "cumulative",
+   "usage": {
+    "cost_usd": 0.03
+   }
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "run.finished",
+  "ts": "2026-08-03T08:08:44.665913+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "outcome": {
+    "status": "passed"
+   }
+  },
+  "task_id": "6636b391"
+ },
+ {
+  "type": "health.assessment",
+  "ts": "2026-08-03T08:08:44.665922+00:00",
+  "source": {
+   "pair": {
+    "harness": "mrboom",
+    "model": "VLLM//home/nil/models/MXFP4/Qwopus3.6-35B-A3B-Coder-MXFP4_MOE_Q8_0-Imatrix.gguf"
+   }
+  },
+  "payload": {
+   "score": 1.0,
+   "recommendation": "none",
+   "signals": [
+    "completed"
+   ]
+  },
+  "task_id": "6636b391"
+ }
+]
