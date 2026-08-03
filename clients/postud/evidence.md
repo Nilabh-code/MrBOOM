@@ -87,6 +87,67 @@ and (per Finding 1) already serve production content.
 
 ---
 
+## Finding 5 — CORS misconfiguration on the authentication API (HIGH)
+
+**Evidence (live response to an arbitrary `Origin`, `auth.api.app.postud.io`):**
+
+```
+$ curl -sk -D- -o /dev/null -H "Origin: https://evil.com" \
+    https://auth.api.app.postud.io/api/v1/transactions/
+access-control-allow-origin: https://evil.com
+access-control-allow-credentials: true
+access-control-allow-methods: GET, POST, PUT, DELETE
+```
+
+Confirmed on every data endpoint tested (`checklogin/`, `user/subscription/`, `team/members/`,
+`transactions/`), and preflight (`OPTIONS`) additionally allows `authorization`, `access-token`
+and `Set-Cookie` headers with `max-age: 86400`.
+
+**Impact:** The API reflects **any** origin and allows credentials. A malicious webpage visited by
+a logged-in user can therefore issue fully authenticated cross-origin requests to the Postudio
+auth/account API — reading `transactions/`, `team/members/`, `subscription/`, changing account
+settings, etc. — and exfiltrate the responses. This is an account/API hijack primitive (CWE-942),
+not just a header hygiene issue.
+
+---
+
+## Finding 6 — Subdomain takeover: `support.postud.io` (HIGH)
+
+**Evidence (DNS + live response):**
+
+```
+$ dig +short CNAME support.postud.io
+b666bc625b73106af849879109e8c377.freshdesk.com
+
+$ curl -sk https://support.postud.io/
+(HTTP 404) "We couldn't find ... Maybe this is still fresh!
+You can claim it now at https://www.freshworks.com/freshdesk/signup"
+```
+
+**Impact:** The Freshdesk account behind the CNAME has been deleted/deactivated, and Freshdesk
+lets anyone claim the name. An attacker can register it and serve arbitrary content at
+`support.postud.io` — a fully trusted-looking subdomain of `postud.io` — for phishing,
+credential harvesting, or malware distribution (CWE-350).
+
+---
+
+## Finding 7 — Email spoofing: no SPF, weak DMARC (MEDIUM)
+
+**Evidence (DNS):**
+
+```
+$ dig +short TXT postud.io          # 7 records (verification tokens only) — NO v=spf1 record
+$ dig +short TXT _dmarc.postud.io
+"v=DMARC1;p=quarantine;rua=mailto:support@postud.io"
+```
+
+**Impact:** With no SPF record and DMARC only at `p=quarantine` (not `p=reject`), senders are not
+unambiguously authenticated. An attacker can spoof emails that appear to come from `postud.io`
+addressed to customers/partners — phishing on the brand. Recommend adding SPF and hardening DMARC
+to `p=reject` (with `sp=` for subdomains).
+
+---
+
 ## Negative results (what we tried, and why data was NOT breached)
 
 The following attack paths were attempted and **failed** — the application's core authentication
@@ -101,6 +162,8 @@ and data layer is implemented correctly:
 | Auth API login with SQLi/NoSQLi payloads | `Decryption error` — login payloads are **encrypted client-side**; server rejects raw tampered bodies |
 | Self-service account signup (`/api/v2/signup/`) | `User registration is not allowed` — signup disabled |
 | Login brute-force | Rate-limited (`429`) after a handful of attempts |
+| Apex S3 bucket (`postud.io.s3.amazonaws.com`) | 403 AccessDenied on list — bucket not publicly listable |
+| `support.postud.io` Freshdesk takeover claim | Confirmed — account **unclaimed and claimable** (Finding 6) |
 
 **Conclusion for the client:** Black-box exploitation of the data layer was not possible — the
 authenticated data API, Firebase, and the signup flow are all correctly gated. The exploitable
