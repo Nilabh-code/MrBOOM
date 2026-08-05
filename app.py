@@ -12,11 +12,12 @@ Install: pip install fastapi uvicorn openai requests sse-starlette
 Run:      uvicorn app:app --port 8080
 """
 
-import json, os, uuid, hashlib, re, threading, time, socket, subprocess, urllib.request, urllib.error, urllib.parse, ssl, html as html_mod, asyncio, concurrent.futures, shutil, traceback, textwrap, inspect, random, string, ipaddress
+import json, os, uuid, hashlib, re, threading, time, socket, subprocess, urllib.request, urllib.error, urllib.parse, ssl, html as html_mod, asyncio, concurrent.futures, shutil, traceback, textwrap, inspect, random, string, ipaddress, math
 from datetime import datetime, timezone
 from pathlib import Path
+from markdown import markdown as md
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
@@ -361,7 +362,7 @@ def save_scan_history(eid):
         "events": eng.get("events", [])[-200:],
     }
     # Include BB findings if they exist
-    for key in ["bb_takeover","bb_cors","bb_open_redirect","bb_injection","bb_webapp","bb_health_endpoints","bb_dirbust","bb_tech","secrets","pd_nuclei","missing_security_headers","wayback","bb_new_subdomains","api_endpoints","subdomains","ports","http","waf","csp","s3","origins","whois","dns","bb_origins","bb_login","bb_sourcemap","bb_wayback","bb_default_creds","bb_jwt","ai_0day_hypotheses","bb_api"]:
+    for key in ["bb_takeover","bb_cors","bb_open_redirect","bb_injection","bb_webapp","bb_health_endpoints","bb_dirbust","bb_tech","secrets","pd_nuclei","missing_security_headers","wayback","bb_new_subdomains","api_endpoints","subdomains","ports","http","waf","csp","s3","origins","whois","dns","bb_origins","bb_login","bb_sourcemap","bb_wayback","bb_default_creds","bb_jwt","ai_0day_hypotheses","bb_api","bb_js","bb_waf","bb_openapi","bb_origin_retest"]:
         val = eng.get(key)
         if val:
             record[key] = val
@@ -796,9 +797,11 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
 
-def http_get(url, timeout=8, host_header=None, no_redirect=False):
+def http_get(url, timeout=8, host_header=None, no_redirect=False, extra_headers=None):
     try:
         headers = stealth.headers()
+        if extra_headers:
+            headers.update(extra_headers)
         if host_header:
             headers["Host"] = host_header
         parsed = urllib.parse.urlparse(url)
@@ -826,6 +829,84 @@ def http_get(url, timeout=8, host_header=None, no_redirect=False):
         return e.code, dict(e.headers or {}), ""
     except Exception:
         return 0, {}, ""
+
+def http_get_retry(url, timeout=8, host_header=None, no_redirect=False, extra_headers=None,
+                   retries=2, backoff=1.5, jitter=1.0):
+    """http_get with rate-limit-aware retry: exponential backoff + Retry-After
+    honoring, so scans don't trip WAFs/rate limits or flood the target."""
+    attempt = 0
+    while True:
+        status, headers, body = http_get(url, timeout=timeout, host_header=host_header,
+                                         no_redirect=no_redirect, extra_headers=extra_headers)
+        if status not in (429, 500, 502, 503, 504) or attempt >= retries:
+            return status, headers, body
+        delay = backoff * (jitter ** attempt)
+        try:
+            ra = int(headers.get("Retry-After", "0") or "0")
+            if ra and 0 < ra <= 60:
+                delay = ra
+        except Exception:
+            pass
+        time.sleep(delay)
+        attempt += 1
+
+# ─── CVSS v3.1 SCORING ────────────────────────────────────────────
+
+def cvss_base_score(vector):
+    """Compute CVSS v3.1 base score from a vector string like
+    CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N. Returns (score, rating)."""
+    try:
+        m = {}
+        for part in vector.split("/"):
+            if ":" in part:
+                k, v = part.split(":", 1)
+                m[k.upper()] = v.upper()
+        av = {"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.2}.get(m.get("AV", "N"), 0.85)
+        ac = {"L": 0.77, "H": 0.44}.get(m.get("AC", "L"), 0.77)
+        pr = {"N": 0.85, "L": 0.62, "H": 0.27}.get(m.get("PR", "N"), 0.85)
+        ui = {"N": 0.85, "R": 0.62}.get(m.get("UI", "N"), 0.85)
+        scope = m.get("S", "U")
+        c = {"H": 0.56, "L": 0.22, "N": 0.0}.get(m.get("C", "H"), 0.56)
+        i = {"H": 0.56, "L": 0.22, "N": 0.0}.get(m.get("I", "H"), 0.56)
+        a = {"H": 0.56, "L": 0.22, "N": 0.0}.get(m.get("A", "H"), 0.56)
+        iss = 1 - (1 - c) * (1 - i) * (1 - a)
+        if scope == "U":
+            impact = 6.42 * iss
+        else:
+            impact = 7.52 * (iss - 0.029) - 3.25 * (iss - 0.02) ** 15
+        exploitability = 8.22 * av * ac * pr * ui
+        if impact <= 0:
+            score = 0.0
+        elif scope == "U":
+            score = min(impact + exploitability, 10.0)
+        else:
+            score = min(1.08 * (impact + exploitability), 10.0)
+        score = round(math.ceil(score * 10) / 10, 1)
+        if score >= 9.0: rating = "CRITICAL"
+        elif score >= 7.0: rating = "HIGH"
+        elif score >= 4.0: rating = "MEDIUM"
+        elif score > 0.0: rating = "LOW"
+        else: rating = "NONE"
+        return score, rating
+    except Exception:
+        return 0.0, "NONE"
+
+SEVERITY_CVSS = {
+    "CRITICAL": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+    "HIGH": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N",
+    "MEDIUM": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+    "LOW": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:N/A:N",
+    "INFO": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:N",
+}
+
+def severity_cvss(severity):
+    """Return (vector, score, rating) for a textual severity."""
+    sev = str(severity or "INFO").upper()
+    if sev not in SEVERITY_CVSS:
+        sev = "INFO"
+    vec = SEVERITY_CVSS[sev]
+    score, rating = cvss_base_score(vec)
+    return vec, score, rating
 
 # ─── SUBDOMAIN DISCOVERY ────────────────────────────────────────
 
@@ -1992,6 +2073,280 @@ def bb_jwt_check(live_urls, api_eps=None, timeout=20):
                     pass
     return findings
 
+def bb_js_assets(urls, timeout=30):
+    """Deep JS asset analysis: fetch every script on the page, extract API
+    endpoints, hardcoded secrets/keys, GraphQL queries, and third-party SDK
+    hosts. Goes beyond naive regex by pulling sourceMappingURL sources too."""
+    findings = []
+    seen_js = set()
+    all_eps = set()
+    all_secrets = []
+    sdk_hosts = set()
+    graphql_ops = set()
+    inventory = []
+    for url in urls[:6]:
+        try:
+            _, _, body = http_get_retry(url, timeout=6)
+            if not body:
+                continue
+        except Exception:
+            continue
+        js_files = re.findall(r'src=["\']([^"\']+\.js(?:[^"\']*))["\']', body)
+        js_files += re.findall(r'href=["\']([^"\']+\.js(?:[^"\']*))["\']', body)
+        for js_path in js_files[:40]:
+            if js_path in seen_js:
+                continue
+            seen_js.add(js_path)
+            if js_path.startswith("http"):
+                js_url = js_path
+            elif js_path.startswith("//"):
+                js_url = "https:" + js_path
+            elif js_path.startswith("/"):
+                parsed = urllib.parse.urlparse(url)
+                js_url = f"{parsed.scheme}://{parsed.netloc}{js_path}"
+            else:
+                continue
+            try:
+                status, hdrs, js_body = http_get_retry(js_url, timeout=6)
+                if status != 200 or not js_body:
+                    continue
+            except Exception:
+                continue
+            inventory.append({"url": js_url, "size": len(js_body), "server": hdrs.get("Server", "")})
+            # endpoint patterns
+            for m in re.finditer(r'["\']((?:/api|/v\d+|/graphql|/internal|/admin|/oauth|/auth|/rest|/upload)[^"\']{2,120})["\']', js_body):
+                all_eps.add(m.group(1))
+            for m in re.finditer(r'(?:fetch|url)\(\s*["\']((?!//|https?://)[^"\']{2,120})["\']', js_body):
+                if m.group(1).startswith("/"):
+                    all_eps.add(m.group(1))
+            # graphql operations
+            for m in re.finditer(r'\b(query|mutation)\s+([A-Za-z_][A-Za-z0-9_]*)\b', js_body):
+                graphql_ops.add(f"{m.group(1)} {m.group(2)}")
+            # secrets / keys
+            patterns = {
+                "AWS_ACCESS_KEY": r'\b(AKIA|ASIA)[0-9A-Z]{16}\b',
+                "GOOGLE_API_KEY": r'\bAIza[0-9A-Za-z\-_]{35}\b',
+                "GITHUB_TOKEN": r'\bgh[pousr]_[A-Za-z0-9_]{36,}\b',
+                "STRIPE_SECRET": r'\b(?:sk|pk)_(?:live|test)_[0-9a-zA-Z]{10,}\b',
+                "SLACK_WEBHOOK": r'https://hooks\.slack\.com/services/[A-Z0-9/]+',
+                "FIREBASE_URL": r'https://[a-z0-9\-]+\.firebaseio\.com',
+                "JWT": r'\beyJ[a-zA-Z0-9_-]{20,}\.eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\b',
+                "SENDGRID_KEY": r'\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b',
+                "TWILIO_SID": r'\bAC[a-f0-9]{32}\b',
+                "PRIVATE_KEY": r'-----BEGIN (?:RSA |EC |DSA )?PRIVATE KEY-----',
+            }
+            for kind, pat in patterns.items():
+                for m in re.finditer(pat, js_body):
+                    val = m.group(0)
+                    if len(val) > 90:
+                        val = val[:90] + "..."
+                    all_secrets.append({"kind": kind, "value": val, "source": js_url})
+            # SDK / third-party hosts
+            for m in re.finditer(r'https?://([a-z0-9\-\.]+\.(?:jsdelivr\.net|unpkg\.com|sentry\.io|googleapis\.com|gstatic\.com|amazonaws\.com|cloudflare\.com|segment\.io|mixpanel\.com|hotjar\.com|intercom\.io|firebaseio\.com))', js_body):
+                sdk_hosts.add(m.group(1))
+            # sourcemap
+            sm = re.search(r'sourceMappingURL=([^\s]+)', js_body)
+            if sm:
+                map_url = urllib.parse.urljoin(js_url, sm.group(1))
+                try:
+                    mstatus, _, mbody = http_get_retry(map_url, timeout=6)
+                    if mstatus == 200 and mbody:
+                        try:
+                            mdata = json.loads(mbody)
+                            for src in mdata.get("sources", [])[:300]:
+                                s = re.sub(r'^webpack://[^/]*/?', "", src)
+                                if s and not s.startswith("node_modules"):
+                                    all_eps.add(s)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+    if inventory:
+        findings.append({"kind": "js_inventory", "scripts": inventory[:60], "count": len(inventory)})
+    if all_eps:
+        findings.append({"kind": "js_endpoints", "endpoints": sorted(all_eps)[:250], "count": len(all_eps)})
+    if all_secrets:
+        findings.append({"kind": "js_secrets", "secrets": all_secrets[:40], "count": len(all_secrets)})
+    if graphql_ops:
+        findings.append({"kind": "graphql_operations", "operations": sorted(graphql_ops)[:50], "count": len(graphql_ops)})
+    if sdk_hosts:
+        findings.append({"kind": "third_party_sdks", "hosts": sorted(sdk_hosts)[:30], "count": len(sdk_hosts)})
+    return findings
+
+def bb_waf_fingerprint(urls, timeout=30):
+    """Fingerprint the WAF/CDN product from headers + block pages, then test a
+    battery of common WAF bypasses (header spoofing, path encoding, HTTP method
+    variance) against a live URL and report which ones change the response."""
+    findings = []
+    if not urls:
+        return findings
+    url = urls[0]
+    try:
+        status, hdrs, body = http_get_retry(url, timeout=6)
+    except Exception:
+        return findings
+    h = {k.lower(): v for k, v in hdrs.items()}
+    combined = " ".join(f"{k}: {v}" for k, v in hdrs.items()).lower() + " " + (body or "").lower()[:2000]
+    waf = "Unknown"
+    if "cf-ray" in h or "cf-cache-status" in h or "__cf_bm" in combined or "cloudflare" in combined:
+        waf = "Cloudflare"
+    elif "x-amz-cf-id" in h or "x-amz-cf-pop" in h:
+        waf = "CloudFront"
+    elif "akamai" in combined or "x-akamai" in h:
+        waf = "Akamai"
+    elif "incapsula" in combined or "visid_incap" in combined:
+        waf = "Imperva/Incapsula"
+    elif "sucuri" in combined:
+        waf = "Sucuri"
+    elif "fastly" in combined:
+        waf = "Fastly"
+    elif "mod_security" in combined or "modsecurity" in combined:
+        waf = "ModSecurity"
+    elif "aws waf" in combined or "awswaf" in combined:
+        waf = "AWS WAF"
+    elif "f5" in combined and ("bigip" in combined or "aspxerror" in combined):
+        waf = "F5 BIG-IP ASM"
+    # bypass battery
+    bypasses = []
+    base_signature = (status, len(body or ""))
+    tests = [
+        ("X-Forwarded-For spoof", {"X-Forwarded-For": "127.0.0.1", "X-Real-IP": "127.0.0.1"}),
+        ("X-Original-URL / X-Rewrite-URL", {"X-Original-URL": "/admin", "X-Rewrite-URL": "/admin"}),
+        ("Case randomization", {}),
+        ("Path encoding", {}),
+        ("HTTP verb tampering", {}),
+        ("Content-Type bypass", {"Content-Type": "application/json"}),
+    ]
+    # special URL variants
+    url_variants = {
+        "Case randomization": url.rstrip("/") + "/AdMiN",
+        "Path encoding": url.rstrip("/") + "/%61dmin",
+        "HTTP verb tampering": url,
+    }
+    for name, hdr_extra in tests:
+        try:
+            if name in url_variants:
+                turl = url_variants[name]
+            else:
+                turl = url
+            s2, h2, b2 = http_get_retry(turl, timeout=5, extra_headers=hdr_extra or None)
+            sig = (s2, len(b2 or ""))
+            if sig != base_signature and s2 != 0:
+                bypasses.append({"test": name, "status": s2, "differs_from_baseline": True, "url": turl})
+        except Exception:
+            continue
+    findings.append({
+        "kind": "waf_fingerprint",
+        "url": url,
+        "waf": waf,
+        "status": status,
+        "server": h.get("server", ""),
+        "bypasses": bypasses[:20],
+    })
+    return findings
+
+def bb_openapi_discovery(base_urls, domain, timeout=30):
+    """Probe for OpenAPI/Swagger/GraphQL spec files, parse endpoints from them,
+    and test GraphQL introspection."""
+    findings = []
+    candidates = set()
+    for b in base_urls[:5]:
+        root = b.rstrip("/")
+        for p in ["/openapi.json", "/swagger.json", "/swagger/v1/swagger.json", "/api-docs", "/api/openapi.json", "/v2/api-docs", "/v3/api-docs", "/.well-known/openapi.json", "/graphql", "/graphiql", "/playground"]:
+            candidates.add(root + p)
+    spec_eps = set()
+    for c in list(candidates)[:25]:
+        try:
+            status, hdrs, body = http_get_retry(c, timeout=5)
+            if status != 200 or not body:
+                continue
+            ct = hdrs.get("Content-Type", "")
+            if "json" in ct.lower() or (body.lstrip().startswith("{") or body.lstrip().startswith("[")):
+                findings.append({"kind": "spec_found", "url": c, "status": status, "content_type": ct, "body_preview": body[:200]})
+                # extract paths from openapi/swagger JSON
+                try:
+                    doc = json.loads(body)
+                    paths = doc.get("paths", {})
+                    for p in list(paths.keys())[:100]:
+                        spec_eps.add(p)
+                except Exception:
+                    pass
+                if "graphql" in c.lower() or "/graphiql" in c.lower():
+                    findings.append({"kind": "graphql_endpoint", "url": c, "status": status, "body_preview": body[:150]})
+                    # introspection probe
+                    try:
+                        gq = '{"query":"{ __schema { types { name } } }"}'
+                        req = urllib.request.Request(c, data=gq.encode(), headers={"Content-Type": "application/json", **stealth.headers()})
+                        ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+                        resp = urllib.request.urlopen(req, timeout=6, context=ctx)
+                        gbody = resp.read().decode("utf-8", errors="ignore")
+                        resp.close()
+                        if '"data"' in gbody and "__schema" in gbody:
+                            findings.append({"kind": "graphql_introspection_open", "url": c, "evidence": "introspection query returned type schema (unauth)"})
+                        elif "errors" in gbody:
+                            findings.append({"kind": "graphql_endpoint", "url": c, "status": 200, "body_preview": gbody[:150]})
+                    except urllib.error.HTTPError as e:
+                        if e.code in (400, 405):
+                            findings.append({"kind": "graphql_endpoint", "url": c, "status": e.code})
+                    except Exception:
+                        pass
+        except Exception:
+            continue
+    if spec_eps:
+        findings.append({"kind": "openapi_paths", "endpoints": sorted(spec_eps)[:150], "count": len(spec_eps)})
+    return findings
+
+def bb_origin_retest(domain, origins, paths, timeout=30):
+    """Re-test confirmed origin IPs directly (bypassing the CDN/WAF): probe the
+    same sensitive paths against the origin and compare to the CDN-wrapped
+    response. Differences reveal WAF-masked content or dev-only endpoints."""
+    findings = []
+    confirmed = [o for o in (origins or []) if o.get("confirmed") and not o.get("is_cdn")]
+    if not confirmed:
+        return findings
+    test_paths = paths or ["/", "/admin", "/api", "/.env", "/swagger", "/api-docs", "/graphql", "/health", "/actuator"]
+    for o in confirmed[:5]:
+        ip = o["ip"]
+        host = o.get("host") or domain
+        for p in test_paths:
+            if not p.startswith("/"):
+                p = "/" + p
+            orig_url = f"http://{ip}{p}"
+            try:
+                os_, oh, ob = http_get_retry(orig_url, timeout=5, host_header=host, no_redirect=True)
+            except Exception:
+                continue
+            if os_ == 0:
+                continue
+            # CDN comparison via the real hostname
+            cdn_url = f"https://{host}{p}"
+            cs_ = 0
+            try:
+                cs_, _, _ = http_get_retry(cdn_url, timeout=5)
+            except Exception:
+                pass
+            differs = cs_ != os_ or (os_ == 200 and cs_ != 200)
+            severity = "medium"
+            issue = "origin_differs_from_cdn"
+            if os_ == 200 and cs_ in (0, 403, 404, 502):
+                severity = "high"
+                issue = "content_masked_by_cdn"
+            if differs:
+                findings.append({
+                    "url": f"http://{ip}{p}",
+                    "host": host,
+                    "origin_ip": ip,
+                    "path": p,
+                    "origin_status": os_,
+                    "cdn_status": cs_,
+                    "origin_len": len(ob or ""),
+                    "server": oh.get("Server", ""),
+                    "issue": issue,
+                    "severity": severity,
+                    "evidence": f"origin HTTP {os_}({len(ob or '')}b) vs CDN HTTP {cs_}",
+                })
+    return findings
+
 # ─── REPORT GENERATION ──────────────────────────────────────────
 
 def generate_report(data):
@@ -2036,6 +2391,15 @@ def generate_report(data):
     lines.append(f"- **Default Creds Accepted:** {len(data.get('bb_default_creds', []))}")
     lines.append(f"- **JWT/API Auth Bypass:** {sum(1 for f in data.get('bb_jwt', []) if f.get('severity') == 'critical')}")
     lines.append(f"- **Live API Hosts:** {sum(1 for a in data.get('bb_api', []) if a.get('kind') == 'api_host')}")
+    lines.append(f"- **JS Bundles Analyzed:** {sum((r.get('count', 0) if r.get('kind') == 'js_inventory' else 0) for r in data.get('bb_js', []))}")
+    js_sec = sum((r.get('count', 0) if r.get('kind') == 'js_secrets' else 0) for r in data.get('bb_js', []))
+    if js_sec:
+        lines.append(f"- **Hardcoded Secrets in JS:** {js_sec}")
+    waf_fp = [r for r in data.get('bb_waf', []) if r.get('kind') == 'waf_fingerprint']
+    if waf_fp:
+        lines.append(f"- **WAF Fingerprint:** {waf_fp[0].get('waf', 'Unknown')} ({len(waf_fp[0].get('bypasses', []))} bypass probes differ)")
+    lines.append(f"- **OpenAPI/Swagger/GraphQL Specs:** {sum(1 for r in data.get('bb_openapi', []) if r.get('kind') == 'spec_found')} | GraphQL introspection open: {sum(1 for r in data.get('bb_openapi', []) if r.get('kind') == 'graphql_introspection_open')}")
+    lines.append(f"- **Origin Re-test Discrepancies:** {len(data.get('bb_origin_retest', []))}")
     lines.append("")
 
     if data.get("ai_analysis"):
@@ -2050,20 +2414,22 @@ def generate_report(data):
     sev_counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
     for f in findings:
         sev_counts[f.get("severity", "INFO").upper()] = sev_counts.get(f.get("severity", "INFO").upper(), 0) + 1
-    lines.append("| Severity | Count |")
-    lines.append("|----------|-------|")
+    lines.append("| Severity | Count | CVSS v3.1 (avg) |")
+    lines.append("|----------|-------|-----------------|")
     for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]:
         if sev_counts[sev]:
-            lines.append(f"| {sev} | {sev_counts[sev]} |")
+            _vec, _score, _rating = severity_cvss(sev)
+            lines.append(f"| {sev} | {sev_counts[sev]} | {_score:.1f} ({_rating}) |")
     lines.append("")
 
     if findings:
         lines.append("### Detailed Findings & Remediation")
         lines.append("")
-        lines.append("| # | Severity | Finding | Asset | CWE |")
-        lines.append("|---|----------|---------|-------|-----|")
+        lines.append("| # | Severity | CVSS | Finding | Asset | CWE |")
+        lines.append("|---|----------|------|---------|-------|-----|")
         for i, f in enumerate(sorted(findings, key=lambda x: -x.get("score", 0))[:40], 1):
-            lines.append(f"| {i} | {f.get('severity','')} | {str(f.get('title',''))[:80]} | {f.get('asset','')} | {f.get('cwe','')} |")
+            _vec, _score, _rating = severity_cvss(f.get("severity"))
+            lines.append(f"| {i} | {f.get('severity','')} | {_score:.1f} | {str(f.get('title',''))[:70]} | {f.get('asset','')} | {f.get('cwe','')} |")
         lines.append("")
         lines.append("#### Remediation Actions")
         lines.append("")
@@ -2399,6 +2765,93 @@ def generate_report(data):
             lines.append(f"- **{j.get('issue', '?')}**: `{j.get('url', '?')}` (severity: {j.get('severity', '?')}) {j.get('evidence', '')}")
         lines.append("")
 
+    js_assets = data.get("bb_js", [])
+    if js_assets:
+        lines.append("## JavaScript Asset Analysis")
+        lines.append("")
+        for r in js_assets:
+            if r.get("kind") == "js_inventory":
+                lines.append(f"**{r.get('count', 0)} JS bundles analyzed:**")
+                lines.append("")
+                lines.append("| Script | Size | Server |")
+                lines.append("|--------|------|--------|")
+                for s in r.get("scripts", [])[:30]:
+                    lines.append(f"| `{s.get('url','')}` | {s.get('size','?')} | {s.get('server','')} |")
+                lines.append("")
+            if r.get("kind") == "js_endpoints":
+                lines.append(f"**{r.get('count', 0)} API endpoints extracted from JS:**")
+                lines.append("")
+                for ep in r.get("endpoints", [])[:40]:
+                    lines.append(f"- `{ep}`")
+                lines.append("")
+            if r.get("kind") == "js_secrets":
+                lines.append(f"**{r.get('count', 0)} potential secrets/keys found in JS:**")
+                lines.append("")
+                for s in r.get("secrets", [])[:25]:
+                    lines.append(f"- **{s.get('kind','?')}** (from `{s.get('source','')}`): `{s.get('value','')}`")
+                lines.append("")
+            if r.get("kind") == "graphql_operations":
+                lines.append(f"**{r.get('count', 0)} GraphQL operations in JS:**")
+                lines.append("")
+                for op in r.get("operations", [])[:25]:
+                    lines.append(f"- `{op}`")
+                lines.append("")
+            if r.get("kind") == "third_party_sdks":
+                lines.append(f"**{r.get('count', 0)} third-party SDK hosts:**")
+                lines.append("")
+                for h in r.get("hosts", [])[:20]:
+                    lines.append(f"- `{h}`")
+                lines.append("")
+
+    waf_fp = data.get("bb_waf", [])
+    if waf_fp:
+        lines.append("## WAF Fingerprint & Bypass Tests")
+        lines.append("")
+        for r in waf_fp:
+            if r.get("kind") != "waf_fingerprint":
+                continue
+            lines.append(f"- **URL:** `{r.get('url','?')}`")
+            lines.append(f"- **WAF detected:** {r.get('waf','Unknown')}")
+            lines.append(f"- **Baseline:** HTTP {r.get('status','?')} (server: {r.get('server','?')})")
+            if r.get("bypasses"):
+                lines.append("- **Bypass probes that differed from baseline:**")
+                for b in r["bypasses"]:
+                    lines.append(f"  - `{b.get('test','?')}` → HTTP {b.get('status','?')}")
+            else:
+                lines.append("- **No bypass probe produced a differing response.**")
+        lines.append("")
+
+    openapi = data.get("bb_openapi", [])
+    if openapi:
+        lines.append("## API Specification Discovery (OpenAPI/Swagger/GraphQL)")
+        lines.append("")
+        for r in openapi:
+            if r.get("kind") == "spec_found":
+                lines.append(f"- **Spec:** `{r.get('url','?')}` → HTTP {r.get('status','?')} ({r.get('content_type','?')})")
+                if r.get("body_preview"):
+                    lines.append(f"  - preview: `{r.get('body_preview','')[:120]}`")
+            if r.get("kind") == "graphql_endpoint":
+                lines.append(f"- **GraphQL endpoint:** `{r.get('url','?')}` → HTTP {r.get('status','?')}")
+            if r.get("kind") == "graphql_introspection_open":
+                lines.append(f"- **⚠️ GraphQL introspection ENABLED (unauth):** `{r.get('url','?')}`")
+            if r.get("kind") == "openapi_paths":
+                lines.append(f"**{r.get('count',0)} paths extracted from API specs:**")
+                for p in r.get("endpoints", [])[:40]:
+                    lines.append(f"- `{p}`")
+        lines.append("")
+
+    orig_retest = data.get("bb_origin_retest", [])
+    if orig_retest:
+        lines.append("## Direct Origin Re-Test (WAF Bypass Validation)")
+        lines.append("")
+        lines.append("*Confirmed origin IPs were probed directly for sensitive paths and compared against the CDN-wrapped response. Differences reveal content the CDN/WAF is masking.*")
+        lines.append("")
+        lines.append("| Origin IP | Path | Origin HTTP | CDN HTTP | Differs | Issue | Severity |")
+        lines.append("|-----------|------|-------------|----------|---------|-------|----------|")
+        for r in orig_retest:
+            lines.append(f"| {r.get('origin_ip','?')} | `{r.get('path','?')}` | {r.get('origin_status','?')} ({r.get('origin_len','?')}b) | {r.get('cdn_status','?')} | {'YES' if (r.get('origin_status') or 0) != (r.get('cdn_status') or 0) else 'no'} | {r.get('issue','?')} | {r.get('severity','?')} |")
+        lines.append("")
+
     tech = data.get("bb_tech", {})
     if tech:
         lines.append("## Technology Stack")
@@ -2491,6 +2944,109 @@ def generate_report(data):
     lines.append(f"*Report generated by MrBOOM One-Shot | {ts}*")
 
     return "\n".join(lines)
+
+# ─── REPORT EXPORT (HTML / PDF) ─────────────────────────────────
+
+def report_to_html(md_text, title="MrBOOM Report"):
+    """Render markdown report + CVSS exec summary into a self-contained HTML doc."""
+    html_body = md(md_text, extensions=["tables", "fenced_code", "nl2br"])
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{html_mod.escape(title)}</title>
+<style>
+body{{font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.55;color:#1f2933;margin:0;padding:32px 20px;background:#f5f7fa;}}
+.wrap{{max-width:960px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:40px 48px;box-shadow:0 1px 4px rgba(0,0,0,.06);}}
+h1{{border-bottom:3px solid #2563eb;padding-bottom:8px;font-size:26px;}}
+h2{{margin-top:28px;color:#0f172a;border-bottom:1px solid #e2e8f0;padding-bottom:4px;font-size:20px;}}
+h3{{margin-top:20px;font-size:16px;}}
+table{{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px;}}
+th,td{{border:1px solid #e2e8f0;padding:6px 10px;text-align:left;}}
+th{{background:#eef2ff;color:#3730a3;font-weight:600;}}
+tr:nth-child(even){{background:#f8fafc;}}
+code{{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:#f1f5f9;padding:2px 5px;border-radius:4px;}}
+pre{{background:#0f172a;color:#e2e8f0;padding:14px;border-radius:8px;overflow-x:auto;}}
+pre code{{background:none;color:inherit;}}
+a{{color:#2563eb;}}
+ul,ol{{padding-left:22px;}}
+.footer{{margin-top:36px;padding-top:12px;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;}}
+</style></head><body><div class="wrap">
+{html_body}
+<div class="footer">Generated by MrBOOM One-Shot · {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}</div>
+</div></body></html>"""
+
+def _find_font(styles=("", "B")):
+    """Locate a regular + bold TTF pair from common font locations."""
+    candidates = [
+        ("/usr/share/fonts/noto/NotoSans%s.ttf", "/usr/share/fonts/noto/NotoSans%s.ttf"),
+        ("/usr/share/fonts/TTF/DejaVuSans%s.ttf", "/usr/share/fonts/TTF/DejaVuSans%s.ttf"),
+        ("/usr/share/fonts/dejavu/DejaVuSans%s.ttf", "/usr/share/fonts/dejavu/DejaVuSans%s.ttf"),
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans%s.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans%s.ttf"),
+    ]
+    for reg, bold in candidates:
+        for suf in ("", "-Regular"):
+            rp = reg % suf
+            bp = bold % ("-Bold" if suf == "-Regular" else "B")
+            if os.path.exists(rp) and os.path.exists(bp):
+                return rp, bp
+    return None, None
+
+def report_to_pdf(md_text, title="MrBOOM Report", out_path=None):
+    """Render the markdown report to a PDF using fpdf2 (pure-python, no system deps)."""
+    try:
+        from fpdf import FPDF
+    except Exception:
+        raise RuntimeError("fpdf2 not installed")
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=16)
+    reg, bold = _find_font()
+    if reg and bold:
+        pdf.add_font("MrReg", "", reg, uni=True)
+        pdf.add_font("MrBold", "", bold, uni=True)
+    else:
+        pdf.add_font("MrReg", "", "helvetica")
+        pdf.add_font("MrBold", "", "helvetica", "B")
+    def _set(style):
+        pdf.set_font("MrBold" if style == "B" else "MrReg", "", 8 if style == "T" else (15 if style == "H2" else (12 if style == "H3" else (20 if style == "H1" else 9))))
+    pdf.add_page()
+    lines = md_text.splitlines()
+    for raw in lines:
+        line = raw.rstrip()
+        if not line:
+            pdf.ln(2)
+            continue
+        # tables
+        if line.startswith("|") and "|" in line[1:]:
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            col_w = 180 / max(len(cells), 1)
+            _set("B")
+            for c in cells:
+                pdf.cell(col_w, 5, c[:40], border=1)
+            pdf.ln()
+            continue
+        # split any token longer than ~70 chars so fpdf can wrap it
+        line = re.sub(r"(?<=\S)(\S{80,})", lambda m: m.group(1)[:80] + "\u200b" + m.group(1)[80:], line)
+        if line.startswith("## "):
+            _set("H2")
+            pdf.multi_cell(pdf.epw, 7, line[3:])
+            pdf.ln(2)
+        elif line.startswith("### "):
+            _set("H3")
+            pdf.multi_cell(pdf.epw, 6, line[4:])
+            pdf.ln(1)
+        elif line.startswith("- "):
+            _set("P")
+            pdf.multi_cell(pdf.epw, 5, "\u2022 " + line[2:])
+        elif line.startswith("# "):
+            _set("H1")
+            pdf.multi_cell(pdf.epw, 9, line[2:])
+            pdf.ln(3)
+        else:
+            _set("P")
+            pdf.multi_cell(pdf.epw, 5, line)
+    if out_path:
+        pdf.output(out_path)
+        return out_path
+    return pdf
 
 # ─── THE PIPELINE ────────────────────────────────────────────────
 
@@ -3190,6 +3746,57 @@ def run_oneshot(eid):
                 emit_ir("message", {"role": "assistant", "text": f"**JWT/API auth**: {crit} endpoints accepted forged/unsigned tokens!"})
         emit_ir("tool.result", {"call_id": f"bb-jwt-{eid}", "status": "ok" if jwt_results else "empty", "result": f"{len(jwt_results)} auth tests"})
 
+        # BB17: Deep JS asset analysis
+        log_state("Analyzing JS bundles for endpoints/secrets (deep)...")
+        js_results = _run_bb(f"bb-js-{eid}", "Deep JS asset analysis", domain, "read", lambda: bb_js_assets(live_urls), timeout=90)
+        if js_results:
+            data["bb_js"] = js_results
+            js_sec = sum((r.get("count", 0) if r.get("kind") == "js_secrets" else 0) for r in js_results)
+            js_eps = sum((r.get("count", 0) if r.get("kind") == "js_endpoints" else 0) for r in js_results)
+            if js_sec:
+                emit_ir("message", {"role": "assistant", "text": f"**JS secrets**: found **{js_sec}** hardcoded secrets/keys in JavaScript bundles!"})
+            if js_eps:
+                emit_ir("message", {"role": "assistant", "text": f"JS analysis extracted **{js_eps}** API endpoints from bundles."})
+        emit_ir("tool.result", {"call_id": f"bb-js-{eid}", "status": "ok" if js_results else "empty", "result": f"{len(js_results)} JS findings"})
+
+        # BB18: WAF fingerprint + bypass testing
+        log_state("Fingerprinting WAF and testing bypasses...")
+        waf_results = _run_bb(f"bb-waf-{eid}", "WAF fingerprint + bypass", domain, "read", lambda: bb_waf_fingerprint(live_urls), timeout=30)
+        if waf_results:
+            data["bb_waf"] = waf_results
+            for r in waf_results:
+                if r.get("kind") == "waf_fingerprint":
+                    bypass_n = len(r.get("bypasses", []))
+                    if bypass_n:
+                        emit_ir("message", {"role": "assistant", "text": f"WAF **{r.get('waf','Unknown')}**: {bypass_n} bypass probes differed from baseline response."})
+        emit_ir("tool.result", {"call_id": f"bb-waf-{eid}", "status": "ok" if waf_results else "empty", "result": "WAF fingerprint complete"})
+
+        # BB19: OpenAPI / Swagger / GraphQL discovery
+        log_state("Discovering API specs (OpenAPI/Swagger/GraphQL)...")
+        api_base_urls = [u for u in live_urls[:5]] + [a.get("url", "").rsplit("/", 1)[0] for a in (data.get("bb_api") or []) if a.get("kind") == "api_host" and a.get("url")]
+        api_base_urls = [u for u in dict.fromkeys(api_base_urls) if u]
+        openapi_results = _run_bb(f"bb-openapi-{eid}", "OpenAPI/Swagger/GraphQL discovery", domain, "read", lambda: bb_openapi_discovery(api_base_urls, domain), timeout=45)
+        if openapi_results:
+            data["bb_openapi"] = openapi_results
+            specs = [r for r in openapi_results if r.get("kind") == "spec_found"]
+            gql_open = [r for r in openapi_results if r.get("kind") == "graphql_introspection_open"]
+            if specs:
+                emit_ir("message", {"role": "assistant", "text": f"Found **{len(specs)}** API spec files (OpenAPI/Swagger/GraphQL)."})
+            if gql_open:
+                emit_ir("message", {"role": "assistant", "text": f"**WARNING**: {len(gql_open)} GraphQL endpoints expose unauth introspection!"})
+        emit_ir("tool.result", {"call_id": f"bb-openapi-{eid}", "status": "ok" if openapi_results else "empty", "result": f"{len([r for r in openapi_results if r.get('kind')=='spec_found']) if openapi_results else 0} specs found"})
+
+        # BB20: Direct-origin re-test (WAF bypass validation)
+        log_state("Re-testing confirmed origin IPs directly...")
+        retest_paths = ["/", "/admin", "/api", "/.env", "/swagger", "/api-docs", "/graphql", "/health", "/actuator"]
+        origin_retest = _run_bb(f"bb-retest-{eid}", "Direct origin re-test", domain, "read", lambda: bb_origin_retest(domain, data.get("bb_origins"), retest_paths), timeout=45)
+        if origin_retest:
+            data["bb_origin_retest"] = origin_retest
+            high = sum(1 for r in origin_retest if r.get("severity") == "high")
+            if high:
+                emit_ir("message", {"role": "assistant", "text": f"**Origin re-test**: {high} paths return content directly from origins that the CDN masks/blocks (WAF bypass validated)."})
+        emit_ir("tool.result", {"call_id": f"bb-retest-{eid}", "status": "ok" if origin_retest else "empty", "result": f"{len(origin_retest)} origin discrepancies"})
+
         emit_ir("health.assessment", {"score": 0.6 if len(data.get("bb_takeover", [])) + len(data.get("bb_cors", [])) + len(data.get("bb_open_redirect", [])) > 0 else 0.8, "signals": ["bug_bounty_scan"]})
 
         # Phase 12: AI Assessment
@@ -3282,6 +3889,30 @@ def run_oneshot(eid):
                     summary_lines.append(f"Probed API endpoints: {len(api_eps_found)}")
                     for a in api_eps_found[:10]:
                         summary_lines.append(f"  EP: {a['url']} -> HTTP {a['status']} {a.get('body_preview','')[:80]}")
+            if data.get("bb_js"):
+                for r in data["bb_js"]:
+                    if r.get("kind") == "js_secrets" and r.get("secrets"):
+                        summary_lines.append(f"JS secrets: {len(r['secrets'])} (sample: " + "; ".join(f"{s.get('kind')}='{s.get('value','')[:40]}'@{s.get('source','')[:40]}" for s in r["secrets"][:4]) + ")")
+                    if r.get("kind") == "js_endpoints" and r.get("endpoints"):
+                        summary_lines.append(f"JS endpoints ({len(r['endpoints'])}): " + ", ".join(r["endpoints"][:6]))
+                    if r.get("kind") == "graphql_operations" and r.get("operations"):
+                        summary_lines.append(f"GraphQL ops in JS: " + ", ".join(r["operations"][:5]))
+            if data.get("bb_waf"):
+                for r in data["bb_waf"]:
+                    if r.get("kind") == "waf_fingerprint":
+                        summary_lines.append(f"WAF: {r.get('waf','Unknown')} (server {r.get('server','')}); bypass probes differing: {len(r.get('bypasses', []))}")
+            if data.get("bb_openapi"):
+                for r in data["bb_openapi"]:
+                    if r.get("kind") == "spec_found":
+                        summary_lines.append(f"API spec: {r['url']} HTTP {r.get('status')} ({r.get('content_type','')})")
+                    if r.get("kind") == "graphql_introspection_open":
+                        summary_lines.append(f"GRAPHQL INTROSPECTION OPEN (unauth): {r['url']}")
+                    if r.get("kind") == "openapi_paths" and r.get("endpoints"):
+                        summary_lines.append(f"OpenAPI paths ({len(r['endpoints'])}): " + ", ".join(r["endpoints"][:8]))
+            if data.get("bb_origin_retest"):
+                summary_lines.append(f"Origin re-test discrepancies: {len(data['bb_origin_retest'])}")
+                for r in data["bb_origin_retest"][:8]:
+                    summary_lines.append(f"  Origin {r.get('origin_ip')} {r.get('path')}: origin HTTP {r.get('origin_status')}({r.get('origin_len')}b) vs CDN HTTP {r.get('cdn_status')} [{r.get('issue')}]")
 
             ai_prompt = f"""You are a senior penetration tester writing a breach assessment from ACTUAL scan data. The data below is the complete result of a live scan — treat it as ground truth, never invent findings that are not present.
 
@@ -3714,22 +4345,55 @@ def get_report(eid: str):
         raise HTTPException(404, "report not generated yet")
     return {"report": eng["report"]}
 
+def _report_source(eid):
+    """Return (report_text, filename) from in-memory DB or persisted history."""
+    if eid in DB and DB[eid].get("report"):
+        eng = DB[eid]
+        return eng["report"], eng.get("report_filename") or f"{eid}.md"
+    for s in load_scan_history():
+        if s.get("id") == eid and s.get("report"):
+            return s["report"], s.get("report_filename") or f"{eid}.md"
+    return None, None
+
 @app.get("/api/engagements/{eid}/download")
 def download_report(eid: str):
-    if eid not in DB:
-        raise HTTPException(404, "not found")
-    eng = DB[eid]
-    if not eng.get("report_path") or not os.path.exists(eng["report_path"]):
-        raise HTTPException(404, "report file not found")
-    with open(eng["report_path"], "r", encoding="utf-8") as f:
-        content = f.read()
+    report, filename = _report_source(eid)
+    if not report:
+        raise HTTPException(404, "report not found")
     return PlainTextResponse(
-        content,
+        report,
         media_type="text/markdown",
         headers={
-            "Content-Disposition": f'attachment; filename="{eng["report_filename"]}"',
+            "Content-Disposition": f'attachment; filename="{filename}"',
         },
     )
+
+@app.get("/api/engagements/{eid}/download/html")
+def download_report_html(eid: str):
+    report, filename = _report_source(eid)
+    if not report:
+        raise HTTPException(404, "report not found")
+    html = report_to_html(report, title=f"MrBOOM Report — {eid}")
+    base = filename.rsplit(".", 1)[0]
+    return HTMLResponse(
+        html,
+        headers={
+            "Content-Disposition": f'attachment; filename="{base}.html"',
+        },
+    )
+
+@app.get("/api/engagements/{eid}/download/pdf")
+def download_report_pdf(eid: str):
+    report, filename = _report_source(eid)
+    if not report:
+        raise HTTPException(404, "report not found")
+    base = filename.rsplit(".", 1)[0]
+    pdf_path = os.path.join(DATA_DIR, f"{base}.pdf")
+    try:
+        report_to_pdf(report, title=f"MrBOOM Report — {eid}", out_path=pdf_path)
+    except Exception as e:
+        raise HTTPException(500, f"PDF export failed: {e}")
+    return FileResponse(pdf_path, media_type="application/pdf", filename=f"{base}.pdf")
 
 @app.get("/api/history")
 def list_history():

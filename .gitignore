@@ -32,3 +32,4 @@ tmp/
 armorcode_bundle.js
 pi_config.txt
 scan_history/
+*.pdf
