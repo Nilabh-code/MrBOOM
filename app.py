@@ -1079,29 +1079,61 @@ def bb_subdomain_bruteforce(domain, timeout=20):
             pass
     return sorted(set(found))
 
-def bb_dirbust(targets, timeout=30):
-    """Directory/file enumeration using wordlist against live URLs."""
+def bb_dirbust(targets, timeout=30, fp_probes=3):
+    """Directory/file enumeration using wordlist against live URLs, with
+    catch-all (soft-404 / SPA fallback / S3 default-deny) false-positive filtering.
+
+    Returns (results, fp_stats). `results` only contains paths whose response
+    signature differs from a random nonexistent-path baseline (i.e. real hits).
+    """
     wordlist = _load_wordlist("directories.txt")
-    if not wordlist or not targets: return {}
+    if not wordlist or not targets: return {}, {}
     results = {}
+    fp_stats = {"probed_targets": 0, "candidates": 0, "false_positives": 0, "real": 0, "by_target": {}}
+
+    def _probe(base, path):
+        url = base + "/" + path.lstrip("/")
+        try:
+            req = urllib.request.Request(url, headers=stealth.headers())
+            ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+            resp = urllib.request.urlopen(req, timeout=4, context=ctx)
+            try:
+                body = resp.read()
+            except Exception:
+                body = b""
+            code, length, h = resp.status, len(body), hashlib.md5(body).hexdigest()
+            resp.close()
+            return (code, length, h)
+        except urllib.error.HTTPError as e:
+            try:
+                body = e.read()
+            except Exception:
+                body = b""
+            return (e.code, len(body), hashlib.md5(body).hexdigest())
+        except Exception:
+            return None
+
     for target in targets[:3]:
+        base = target.rstrip("/")
+
+        # Baseline: signature(s) of random nonexistent paths → catch-all behavior
+        baseline = set()
+        for _ in range(fp_probes):
+            sig = _probe(base, "x-nonexistent-" + uuid.uuid4().hex[:12])
+            if sig:
+                baseline.add(sig)
+            stealth.small_sleep()
+
         found = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=stealth.workers("dirbust")) as pool:
             def _check(path):
-                url = target.rstrip("/") + "/" + path.lstrip("/")
-                try:
-                    req = urllib.request.Request(url, headers=stealth.headers())
-                    ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
-                    resp = urllib.request.urlopen(req, timeout=4, context=ctx)
-                    code = resp.status
-                    length = len(resp.read())
-                    resp.close()
-                    if code in (200, 301, 302, 401, 403, 400, 500):
-                        return (path, code, length)
-                except urllib.error.HTTPError as e:
-                    if e.code in (401, 403, 301, 302, 200, 400, 500):
-                        return (path, e.code, 0)
-                except: pass
+                sig = _probe(base, path)
+                if not sig: return None
+                code, length, h = sig
+                if code in (200, 301, 302, 401, 403, 400, 500):
+                    if sig in baseline:
+                        return ("fp", path, code, length)
+                    return ("real", path, code, length)
                 return None
             fut_map = {pool.submit(_check, p): p for p in wordlist[:300]}
             try:
@@ -1112,9 +1144,21 @@ def bb_dirbust(targets, timeout=30):
                     except: pass
                     stealth.small_sleep()
             except concurrent.futures.TimeoutError: pass
-        if found:
-            results[target] = sorted(found, key=lambda x: x[0])
-    return results
+
+        real = [(p, c, l) for tag, p, c, l in found if tag == "real"]
+        fps = [(p, c, l) for tag, p, c, l in found if tag == "fp"]
+        if real:
+            results[target] = sorted(real, key=lambda x: x[0])
+        fp_stats["probed_targets"] += 1
+        fp_stats["candidates"] += len(found)
+        fp_stats["false_positives"] += len(fps)
+        fp_stats["real"] += len(real)
+        fp_stats["by_target"][target] = {
+            "candidates": len(found), "real": len(real),
+            "false_positives": len(fps),
+            "catchall_signature": sorted(baseline)[:3],
+        }
+    return results, fp_stats
 
 def bb_tech_fingerprint_extended(headers, body):
     """Expanded tech detection — CMS, frameworks, CDNs, analytics."""
@@ -1826,7 +1870,8 @@ def generate_report(data):
     lines.append(f"- **Org:** {data.get('whois', {}).get('org', 'N/A')}")
     lines.append(f"- **Wayback URLs:** {len(data.get('wayback', {}).get('urls', []))}")
     lines.append(f"- **New Subdomains (brute):** {len(data.get('bb_new_subdomains', []))}")
-    lines.append(f"- **Directories Found:** {sum(len(v) for v in data.get('bb_dirbust', {}).values())}")
+    fp = data.get("bb_dirbust_fp", {})
+    lines.append(f"- **Directories Found:** {sum(len(v) for v in data.get('bb_dirbust', {}).values())} ({fp.get('false_positives', 0)} catch-all false positives filtered)")
     lines.append(f"- **Takeover Candidates:** {sum(1 for t in data.get('bb_takeover', []) if t.get('vulnerable'))}")
     lines.append(f"- **CORS Issues:** {len(data.get('bb_cors', []))}")
     lines.append(f"- **Open Redirects:** {len(data.get('bb_open_redirect', []))}")
@@ -2059,8 +2104,15 @@ def generate_report(data):
     if dirbust:
         lines.append("## Exposed Directories / Files")
         lines.append("")
+        lines.append("*Note: paths matching the target's catch-all response (random-path baseline) are filtered as false positives.*")
+        lines.append("")
+        fp = data.get("bb_dirbust_fp", {})
+        btr = fp.get("by_target", {})
         for target, paths in dirbust.items():
             lines.append(f"**{target}**")
+            if btr.get(target):
+                info = btr[target]
+                lines.append(f"  *(candidates: {info.get('candidates', 0)}, real: {info.get('real', 0)}, false positives filtered: {info.get('false_positives', 0)})*")
             lines.append("")
             for path, code, length in paths[:20]:
                 lines.append(f"- `{path}` → {code} ({length}b)")
@@ -2791,14 +2843,21 @@ def run_oneshot(eid):
 
         live_urls = [u for u in http_results.keys() if http_results[u].get("status") == 200 or http_results[u].get("web_port")]
 
-        # BB4: Directory busting
+        # BB4: Directory busting (with catch-all false-positive filtering)
         log_state("Busting directories (wordlist)...")
-        dirbust_results = _run_bb(f"bb-dir-{eid}", "Directory busting", domain, "search", lambda: bb_dirbust(live_urls), timeout=45)
+        emit_ir("tool.call", {"call_id": f"bb-dir-{eid}", "name": "Directory busting", "target": domain, "category": "search"})
+        try:
+            dirbust_raw, dirbust_fp = bb_dirbust(live_urls)
+        except Exception:
+            dirbust_raw, dirbust_fp = {}, {}
+        dirbust_results = dirbust_raw
         if dirbust_results:
             data["bb_dirbust"] = dirbust_results
+            data["bb_dirbust_fp"] = dirbust_fp
             total_dirs = sum(len(v) for v in dirbust_results.values())
-            emit_ir("message", {"role": "assistant", "text": f"Directory busting found **{total_dirs}** accessible paths across {len(dirbust_results)} targets."})
-        emit_ir("tool.result", {"call_id": f"bb-dir-{eid}", "status": "ok" if dirbust_results else "empty", "result": f"{sum(len(v) for v in dirbust_results.values()) if dirbust_results else 0} paths found"})
+            total_fp = dirbust_fp.get("false_positives", 0)
+            emit_ir("message", {"role": "assistant", "text": f"Directory busting found **{total_dirs}** real paths across {len(dirbust_results)} targets ({total_fp} catch-all false positives filtered)."})
+        emit_ir("tool.result", {"call_id": f"bb-dir-{eid}", "status": "ok" if dirbust_results else "empty", "result": f"{sum(len(v) for v in dirbust_results.values()) if dirbust_results else 0} real paths found ({dirbust_fp.get('false_positives', 0)} FPs filtered)"})
 
         # BB4b: Webapp vulnerability scan on discovered paths
         log_state("Probing discovered paths for app-level vulnerabilities...")
@@ -2996,7 +3055,8 @@ def run_oneshot(eid):
             if data.get("bb_injection"):
                 summary_lines.append(f"XSS candidates: {sum(1 for f in data['bb_injection'] if f.get('type') == 'XSS')}")
             if data.get("bb_dirbust"):
-                summary_lines.append(f"Exposed dirs/files: {sum(len(v) for v in data['bb_dirbust'].values())}")
+                _fp = data.get("bb_dirbust_fp", {}).get("false_positives", 0)
+                summary_lines.append(f"Exposed dirs/files: {sum(len(v) for v in data['bb_dirbust'].values())} ({_fp} FPs filtered)")
             if data.get("bb_health_endpoints"):
                 summary_lines.append(f"Exposed endpoints: {len(data['bb_health_endpoints'])}")
             if data.get("missing_security_headers"):
