@@ -792,7 +792,11 @@ def _resolve_host(host, timeout=4):
         _dns_cache[key] = result
     return result
 
-def http_get(url, timeout=8, host_header=None):
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+def http_get(url, timeout=8, host_header=None, no_redirect=False):
     try:
         headers = stealth.headers()
         if host_header:
@@ -808,7 +812,14 @@ def http_get(url, timeout=8, host_header=None):
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
-        resp = urllib.request.urlopen(req, timeout=timeout, context=ctx)
+        if no_redirect:
+            class _NoVerifyHTTPS(urllib.request.HTTPSHandler):
+                def https_open(self, r):
+                    return self.do_open(urllib.request.http.client.HTTPSConnection, r, context=ctx)
+            opener = urllib.request.build_opener(_NoRedirect, _NoVerifyHTTPS())
+            resp = opener.open(req, timeout=timeout)
+        else:
+            resp = urllib.request.urlopen(req, timeout=timeout, context=ctx)
         body = resp.read().decode("utf-8", errors="ignore")
         return resp.status, dict(resp.headers), body
     except urllib.error.HTTPError as e:
@@ -1576,20 +1587,30 @@ def _cdn_from_headers(headers):
         return True, "sucuri"
     return False, ""
 
-def bb_origin_hunt(domain, subdomains=None):
+def bb_origin_hunt(domain, subdomains=None, time_budget=140):
     """Find real origin IPs behind CDN/WAF. Resolves all hosts plus historical
     DNS records, filters CDN ranges, then probes non-CDN IPs directly over BOTH
     HTTP and HTTPS with a Host header. An IP is confirmed as a genuine origin
     when it answers with a matching page, or redirects toward the target domain."""
+    t_start = time.time()
     origins = []
     hosts = [domain] + list(subdomains or [])
     host_to_ips = {}
-    for h in hosts[:60]:
+    # Concurrent DNS resolution (serial gethostbyname_ex over 40 hosts is slow)
+    def _resolve(h):
         try:
             _, _, ips = socket.gethostbyname_ex(h)
-            host_to_ips[h] = ips
+            return h, ips
         except Exception:
-            continue
+            return h, []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as rpool:
+        futs = {rpool.submit(_resolve, h): h for h in hosts[:60]}
+        for f in concurrent.futures.as_completed(futs):
+            if time.time() - t_start > time_budget:
+                break
+            h, ips = f.result()
+            if ips:
+                host_to_ips[h] = ips
     all_ips = set()
     for ips in host_to_ips.values():
         all_ips.update(ips)
@@ -1606,44 +1627,80 @@ def bb_origin_hunt(domain, subdomains=None):
 
     domain_l = domain.lower()
     root = domain_l.split(".")[0]
+    probe_hosts = [domain] + list(subdomains or [])[:10]
     for ip in sorted(all_ips):
+        if time.time() - t_start > time_budget:
+            break
         is_cdn, cdn_name = _ip_in_cdn(ip)
         if is_cdn:
             origins.append({"ip": ip, "host": "", "cdn": cdn_name, "is_cdn": True, "confirmed": False, "evidence": ""})
             continue
         confirmed_origin = None
         evidence = ""
+        # Probe primary domain first (both schemes); only try subdomain hosts if
+        # the primary domain yields nothing — keeps per-IP cost bounded.
         for scheme in ("https", "http"):
-            if confirmed_origin:
+            if confirmed_origin or time.time() - t_start > time_budget:
                 break
-            for h in [domain] + list(subdomains or [])[:10]:
-                try:
-                    status, headers, body = http_get(f"{scheme}://{ip}", timeout=4, host_header=h)
-                    if status not in (200, 301, 302, 403, 404):
-                        continue
-                    # CDN served this response directly → edge IP, not an origin
-                    hdr_cdn, hdr_name = _cdn_from_headers(headers)
-                    if hdr_cdn:
-                        if not is_cdn:
-                            origins.append({"ip": ip, "host": h, "cdn": hdr_name, "is_cdn": True, "confirmed": False, "evidence": f"{scheme}:{status} CDN header ({hdr_name})"})
-                            is_cdn = True
-                        break
-                    loc = headers.get("Location", "") or ""
-                    bl = (body or "").lower()
-                    if loc and (domain_l in loc.lower() or h.lower() in loc.lower()):
-                        confirmed_origin = h
-                        evidence = f"{scheme}:{status} redirect->{loc[:60]}"
-                        break
-                    if status == 200 and root in bl[:2000]:
-                        confirmed_origin = h
-                        evidence = f"{scheme}:{status} body-match"
-                        break
-                    if status in (200, 301, 302):
-                        confirmed_origin = h
-                        evidence = f"{scheme}:{status} reachable"
-                        break
-                except Exception:
+            try:
+                status, headers, body = http_get(f"{scheme}://{ip}", timeout=3, host_header=domain, no_redirect=True)
+                if status not in (200, 301, 302, 403, 404):
                     continue
+                hdr_cdn, hdr_name = _cdn_from_headers(headers)
+                if hdr_cdn:
+                    if not is_cdn:
+                        origins.append({"ip": ip, "host": domain, "cdn": hdr_name, "is_cdn": True, "confirmed": False, "evidence": f"{scheme}:{status} CDN header ({hdr_name})"})
+                        is_cdn = True
+                    break
+                loc = headers.get("Location", "") or ""
+                bl = (body or "").lower()
+                if loc and (domain_l in loc.lower()):
+                    confirmed_origin = domain
+                    evidence = f"{scheme}:{status} redirect->{loc[:60]}"
+                    break
+                if status == 200 and root in bl[:2000]:
+                    confirmed_origin = domain
+                    evidence = f"{scheme}:{status} body-match"
+                    break
+                if status in (200, 301, 302):
+                    confirmed_origin = domain
+                    evidence = f"{scheme}:{status} reachable"
+                    break
+            except Exception:
+                continue
+        # Fallback: subdomain hosts (only for the one IP, keep tight)
+        if not confirmed_origin and not is_cdn and time.time() - t_start < time_budget - 20:
+            for scheme in ("https", "http"):
+                if confirmed_origin or time.time() - t_start > time_budget:
+                    break
+                for h in probe_hosts[1:]:
+                    if time.time() - t_start > time_budget:
+                        break
+                    try:
+                        status, headers, body = http_get(f"{scheme}://{ip}", timeout=3, host_header=h, no_redirect=True)
+                        if status not in (200, 301, 302, 403, 404):
+                            continue
+                        hdr_cdn, hdr_name = _cdn_from_headers(headers)
+                        if hdr_cdn:
+                            break
+                        loc = headers.get("Location", "") or ""
+                        bl = (body or "").lower()
+                        if loc and (domain_l in loc.lower() or h.lower() in loc.lower()):
+                            confirmed_origin = h
+                            evidence = f"{scheme}:{status} redirect->{loc[:60]}"
+                            break
+                        if status == 200 and root in bl[:2000]:
+                            confirmed_origin = h
+                            evidence = f"{scheme}:{status} body-match"
+                            break
+                        if status in (200, 301, 302):
+                            confirmed_origin = h
+                            evidence = f"{scheme}:{status} reachable"
+                            break
+                    except Exception:
+                        continue
+                if confirmed_origin:
+                    break
         if is_cdn:
             continue
         if confirmed_origin:
@@ -3056,7 +3113,7 @@ def run_oneshot(eid):
 
         # BB11: Origin IP hunting (CDN/WAF bypass)
         log_state("Hunting origin IPs behind CDN/WAF...")
-        origin_results = _run_bb(f"bb-orig-{eid}", "Origin IP hunt", domain, "search", lambda: bb_origin_hunt(domain, subs[:40]), timeout=40)
+        origin_results = _run_bb(f"bb-orig-{eid}", "Origin IP hunt", domain, "search", lambda: bb_origin_hunt(domain, subs[:40]), timeout=150)
         if origin_results:
             data["bb_origins"] = origin_results
             confirmed = sum(1 for o in origin_results if o.get("confirmed"))
