@@ -1510,6 +1510,36 @@ CDN_RANGES = {
     "azure": ["13.64.0.0/11", "20.36.0.0/14", "40.74.0.0/15", "52.136.0.0/13"],
 }
 
+# Reverse-DNS hostname signals that identify CDN edge IPs even outside CDN_RANGES
+CDN_HOSTNAME_MARKERS = {
+    "cloudflare": ["cloudflare", "cf-edge", ".cf."],
+    "cloudfront": ["cloudfront.net"],
+    "fastly": ["fastly.net", "fastlylb.net"],
+    "akamai": ["akamaiedge", "akamai", "akam.net", "akamaitechnologies"],
+    "incapsula": ["incapdns.net", "imperva"],
+    "sucuri": ["sucuri.net"],
+}
+
+_ptr_cache = {}
+
+def _ptr_of(ip, timeout=2):
+    """Reverse-DNS hostname for an IP, with hard timeout + cache."""
+    if ip in _ptr_cache:
+        return _ptr_cache[ip]
+    out = [None]
+    def _look():
+        try:
+            out[0] = socket.gethostbyaddr(ip)[0]
+        except Exception:
+            out[0] = None
+    t = threading.Thread(target=_look, daemon=True)
+    t.start(); t.join(timeout)
+    if t.is_alive():
+        _ptr_cache[ip] = None
+        return None
+    _ptr_cache[ip] = out[0]
+    return out[0]
+
 def _ip_in_cdn(ip):
     try:
         ip_obj = ipaddress.ip_address(ip)
@@ -1522,11 +1552,35 @@ def _ip_in_cdn(ip):
                     return True, name
             except Exception:
                 continue
+    # Range tables can be stale — confirm via reverse-DNS hostname
+    ptr = _ptr_of(ip)
+    if ptr:
+        pl = ptr.lower()
+        for name, markers in CDN_HOSTNAME_MARKERS.items():
+            if any(m in pl for m in markers):
+                return True, name
+    return False, ""
+
+def _cdn_from_headers(headers):
+    """Detect CDN presence from response headers (more reliable than ranges/PTR)."""
+    h = {k.lower(): (v or "").lower() for k, v in (headers or {}).items()}
+    if h.get("cf-ray") or "cloudflare" in h.get("server", "") or h.get("cf-cache-status"):
+        return True, "cloudflare"
+    if h.get("x-amz-cf-id") or h.get("x-amz-cf-pop") or "cloudfront" in h.get("via", "") or "cloudfront" in h.get("server", ""):
+        return True, "cloudfront"
+    if "fastly" in h.get("via", "") or "fastly" in h.get("x-served-by", "") or "fastly" in h.get("server", ""):
+        return True, "fastly"
+    if "akamai" in h.get("via", "") or "akamai" in h.get("server", "") or "akamaiedge" in h.get("server", ""):
+        return True, "akamai"
+    if "sucuri" in h.get("server", "") or "incapsula" in h.get("server", ""):
+        return True, "sucuri"
     return False, ""
 
 def bb_origin_hunt(domain, subdomains=None):
-    """Find real origin IPs behind CDN/WAF. Resolves all hosts, filters CDN
-    ranges, then probes non-CDN IPs directly with a Host header to confirm."""
+    """Find real origin IPs behind CDN/WAF. Resolves all hosts plus historical
+    DNS records, filters CDN ranges, then probes non-CDN IPs directly over BOTH
+    HTTP and HTTPS with a Host header. An IP is confirmed as a genuine origin
+    when it answers with a matching page, or redirects toward the target domain."""
     origins = []
     hosts = [domain] + list(subdomains or [])
     host_to_ips = {}
@@ -1539,23 +1593,63 @@ def bb_origin_hunt(domain, subdomains=None):
     all_ips = set()
     for ips in host_to_ips.values():
         all_ips.update(ips)
+    # Historical / alternate IPs from hackertarget hostsearch
+    try:
+        status, _, body = http_get(f"https://api.hackertarget.com/hostsearch/?q={domain}", timeout=10)
+        if status == 200 and body:
+            for line in body.strip().split("\n"):
+                parts = line.split(",")
+                if len(parts) == 2 and parts[1].strip():
+                    all_ips.add(parts[1].strip())
+    except Exception:
+        pass
+
+    domain_l = domain.lower()
+    root = domain_l.split(".")[0]
     for ip in sorted(all_ips):
         is_cdn, cdn_name = _ip_in_cdn(ip)
         if is_cdn:
-            origins.append({"ip": ip, "cdn": cdn_name, "is_cdn": True, "confirmed": False})
+            origins.append({"ip": ip, "host": "", "cdn": cdn_name, "is_cdn": True, "confirmed": False, "evidence": ""})
             continue
-        confirmed = False
-        for h in [domain] + list(subdomains or [])[:10]:
-            try:
-                status, headers, _ = http_get(f"https://{ip}", timeout=4, host_header=h)
-                if status in (200, 301, 302, 403, 404):
-                    origins.append({"ip": ip, "host": h, "cdn": "", "is_cdn": False, "confirmed": True})
-                    confirmed = True
-                    break
-            except Exception:
-                continue
-        if not confirmed:
-            origins.append({"ip": ip, "cdn": "", "is_cdn": False, "confirmed": False})
+        confirmed_origin = None
+        evidence = ""
+        for scheme in ("https", "http"):
+            if confirmed_origin:
+                break
+            for h in [domain] + list(subdomains or [])[:10]:
+                try:
+                    status, headers, body = http_get(f"{scheme}://{ip}", timeout=4, host_header=h)
+                    if status not in (200, 301, 302, 403, 404):
+                        continue
+                    # CDN served this response directly → edge IP, not an origin
+                    hdr_cdn, hdr_name = _cdn_from_headers(headers)
+                    if hdr_cdn:
+                        if not is_cdn:
+                            origins.append({"ip": ip, "host": h, "cdn": hdr_name, "is_cdn": True, "confirmed": False, "evidence": f"{scheme}:{status} CDN header ({hdr_name})"})
+                            is_cdn = True
+                        break
+                    loc = headers.get("Location", "") or ""
+                    bl = (body or "").lower()
+                    if loc and (domain_l in loc.lower() or h.lower() in loc.lower()):
+                        confirmed_origin = h
+                        evidence = f"{scheme}:{status} redirect->{loc[:60]}"
+                        break
+                    if status == 200 and root in bl[:2000]:
+                        confirmed_origin = h
+                        evidence = f"{scheme}:{status} body-match"
+                        break
+                    if status in (200, 301, 302):
+                        confirmed_origin = h
+                        evidence = f"{scheme}:{status} reachable"
+                        break
+                except Exception:
+                    continue
+        if is_cdn:
+            continue
+        if confirmed_origin:
+            origins.append({"ip": ip, "host": confirmed_origin, "cdn": "", "is_cdn": False, "confirmed": True, "evidence": evidence})
+        else:
+            origins.append({"ip": ip, "host": "", "cdn": "", "is_cdn": False, "confirmed": False, "evidence": ""})
     return origins
 
 def bb_login_probe(urls, timeout=20):
@@ -2070,13 +2164,17 @@ def generate_report(data):
 
     origins = data.get("origins", [])
     if origins:
-        lines.append("## Origin IPs (Cloudflare Bypass)")
-        lines.append("")
-        lines.append(f"| Subdomain | IP |")
-        lines.append(f"|-----------|-----|")
-        for o in origins:
-            lines.append(f"| {o.get('subdomain', '?')} | {o.get('ip', '?')} |")
-        lines.append("")
+        non_cdn = [o for o in origins if not _ip_in_cdn(o.get("ip", ""))[0]]
+        if non_cdn:
+            lines.append("## Origin IPs (Cloudflare Bypass)")
+            lines.append("")
+            lines.append("*Only non-CDN edge IPs are listed — CDN addresses are filtered as they are not real origins.*")
+            lines.append("")
+            lines.append(f"| Subdomain | IP |")
+            lines.append(f"|-----------|-----|")
+            for o in non_cdn:
+                lines.append(f"| {o.get('subdomain', '?')} | {o.get('ip', '?')} |")
+            lines.append("")
 
     secrets = data.get("secrets", [])
     if secrets:
@@ -2165,10 +2263,20 @@ def generate_report(data):
     if origins:
         lines.append("## Origin IP Analysis (CDN/WAF Bypass)")
         lines.append("")
-        lines.append("| IP | CDN | Direct Origin | Status |")
-        lines.append("|----|-----|---------------|--------|")
+        confirmed = [o for o in origins if o.get("confirmed")]
+        if not confirmed:
+            lines.append("*No non-CDN origin IPs could be confirmed as direct origins.*")
+            lines.append("")
+        lines.append("| IP | CDN | Direct Origin | Status | Evidence |")
+        lines.append("|----|-----|---------------|--------|----------|")
         for o in origins:
-            lines.append(f"| {o.get('ip', '?')} | {o.get('cdn', '') or 'no'} | {'YES' if o.get('is_cdn') is False else 'no'} | {'confirmed' if o.get('confirmed') else 'unconfirmed'} |")
+            if o.get("is_cdn"):
+                continue
+            status_txt = "confirmed" if o.get("confirmed") else "unconfirmed"
+            origin_txt = "YES" if o.get("confirmed") else "no"
+            lines.append(f"| {o.get('ip', '?')} | {o.get('cdn', '') or 'no'} | {origin_txt} | {status_txt} | {o.get('evidence', '')[:60]} |")
+        lines.append("")
+        lines.append("*CDN edge IPs (Cloudflare/Akamai/Fastly/CloudFront ranges) are excluded — they are not real origins.*")
         lines.append("")
 
     login = data.get("bb_login", [])
