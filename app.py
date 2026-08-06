@@ -362,7 +362,7 @@ def save_scan_history(eid):
         "events": eng.get("events", [])[-200:],
     }
     # Include BB findings if they exist
-    for key in ["bb_takeover","bb_cors","bb_open_redirect","bb_injection","bb_webapp","bb_health_endpoints","bb_dirbust","bb_tech","secrets","pd_nuclei","missing_security_headers","wayback","bb_new_subdomains","api_endpoints","subdomains","ports","http","waf","csp","s3","origins","whois","dns","bb_origins","bb_login","bb_sourcemap","bb_wayback","bb_default_creds","bb_jwt","ai_0day_hypotheses","bb_api","bb_js","bb_waf","bb_openapi","bb_origin_retest"]:
+    for key in ["bb_takeover","bb_cors","bb_open_redirect","bb_injection","bb_webapp","bb_health_endpoints","bb_dirbust","bb_tech","secrets","pd_nuclei","missing_security_headers","wayback","bb_new_subdomains","api_endpoints","subdomains","ports","http","waf","csp","s3","origins","whois","dns","bb_origins","bb_login","bb_sourcemap","bb_wayback","bb_default_creds","bb_jwt","ai_0day_hypotheses","bb_api","bb_js","bb_waf","bb_openapi","bb_origin_retest","bb_cf_hunt"]:
         val = eng.get(key)
         if val:
             record[key] = val
@@ -2347,6 +2347,31 @@ def bb_origin_retest(domain, origins, paths, timeout=30):
                 })
     return findings
 
+def _cf_hunt_adapter(domain, subs=None, time_budget=140):
+    """Run the dedicated CloudFront/CDN origin hunt (cloudfront_hunt.py) and
+    normalize its output into the bb_origins format. Falls back gracefully if
+    the module is missing."""
+    try:
+        import cloudfront_hunt as cfh
+    except Exception:
+        return {}
+    try:
+        rep = cfh.hunt(domain, list(subs or [])[:45], time_budget=time_budget)
+        origins = []
+        for o in rep.get("origin_ips", []):
+            origins.append({
+                "ip": o.get("ip", ""),
+                "host": o.get("host", ""),
+                "cdn": o.get("cdn", ""),
+                "is_cdn": bool(o.get("is_cdn")),
+                "confirmed": bool(o.get("confirmed")),
+                "evidence": o.get("evidence", ""),
+            })
+        rep["origin_ips"] = origins
+        return rep
+    except Exception:
+        return {}
+
 # ─── REPORT GENERATION ──────────────────────────────────────────
 
 def generate_report(data):
@@ -2400,6 +2425,11 @@ def generate_report(data):
         lines.append(f"- **WAF Fingerprint:** {waf_fp[0].get('waf', 'Unknown')} ({len(waf_fp[0].get('bypasses', []))} bypass probes differ)")
     lines.append(f"- **OpenAPI/Swagger/GraphQL Specs:** {sum(1 for r in data.get('bb_openapi', []) if r.get('kind') == 'spec_found')} | GraphQL introspection open: {sum(1 for r in data.get('bb_openapi', []) if r.get('kind') == 'graphql_introspection_open')}")
     lines.append(f"- **Origin Re-test Discrepancies:** {len(data.get('bb_origin_retest', []))}")
+    cf_hunt = data.get("bb_cf_hunt", {})
+    if cf_hunt.get("origin_ips"):
+        lines.append(f"- **Dedicated CDN Origin Hunt:** {len([o for o in cf_hunt.get('origin_ips', []) if o.get('confirmed')])} confirmed origins, {len(cf_hunt.get('cdn_edges', []))} CDN edges filtered")
+        if cf_hunt.get("cloudfront"):
+            lines.append(f"- **CloudFront Distribution Confirmed:** POP {cf_hunt.get('cloudfront_pop') or 'n/a'} (server: {cf_hunt.get('cloudfront_server') or 'n/a'})")
     lines.append("")
 
     if data.get("ai_analysis"):
@@ -2850,6 +2880,29 @@ def generate_report(data):
         lines.append("|-----------|------|-------------|----------|---------|-------|----------|")
         for r in orig_retest:
             lines.append(f"| {r.get('origin_ip','?')} | `{r.get('path','?')}` | {r.get('origin_status','?')} ({r.get('origin_len','?')}b) | {r.get('cdn_status','?')} | {'YES' if (r.get('origin_status') or 0) != (r.get('cdn_status') or 0) else 'no'} | {r.get('issue','?')} | {r.get('severity','?')} |")
+        lines.append("")
+
+    cf_hunt = data.get("bb_cf_hunt", {})
+    if cf_hunt:
+        lines.append("## Dedicated CDN Origin Hunt (CloudFront-aware)")
+        lines.append("")
+        if cf_hunt.get("cloudfront"):
+            lines.append(f"- **CloudFront confirmed:** POP `{cf_hunt.get('cloudfront_pop') or 'n/a'}` (server: `{cf_hunt.get('cloudfront_server') or 'n/a'}`)")
+        lines.append(f"- **Candidate sources:** {json.dumps(cf_hunt.get('sources', {}))}")
+        lines.append(f"- **Elapsed:** {cf_hunt.get('elapsed_s', '?')}s")
+        confirmed_cf = [o for o in cf_hunt.get("origin_ips", []) if o.get("confirmed")]
+        if confirmed_cf:
+            lines.append("")
+            lines.append("**Confirmed origin IPs (historical DNS / crt.sh / origin-subdomain probing):**")
+            lines.append("")
+            lines.append("| IP | Host | Evidence |")
+            lines.append("|----|------|----------|")
+            for o in confirmed_cf:
+                lines.append(f"| {o.get('ip','?')} | {o.get('host','?')} | {o.get('evidence','')[:80]} |")
+        edges = cf_hunt.get("cdn_edges", [])
+        if edges:
+            lines.append("")
+            lines.append(f"**{len(edges)} CDN edge IPs filtered** (CloudFront/Cloudflare ranges + PTR + headers): `{', '.join(e.get('ip','') for e in edges[:12])}`")
         lines.append("")
 
     tech = data.get("bb_tech", {})
@@ -3797,6 +3850,22 @@ def run_oneshot(eid):
                 emit_ir("message", {"role": "assistant", "text": f"**Origin re-test**: {high} paths return content directly from origins that the CDN masks/blocks (WAF bypass validated)."})
         emit_ir("tool.result", {"call_id": f"bb-retest-{eid}", "status": "ok" if origin_retest else "empty", "result": f"{len(origin_retest)} origin discrepancies"})
 
+        # BB21: CloudFront-focused origin hunt (harvests historical DNS, crt.sh,
+        # origin-subdomain guesses; filters CF edges via ranges+PTR+headers)
+        log_state("Hunting origins behind CloudFront/Cloudflare (dedicated)...")
+        cf_report = _run_bb(f"bb-cfhunt-{eid}", "CloudFront origin hunt", domain, "search", lambda: _cf_hunt_adapter(domain, subs), timeout=160)
+        if cf_report and cf_report.get("origin_ips"):
+            data["bb_cf_hunt"] = cf_report
+            cf_confirmed = [o for o in cf_report["origin_ips"] if o.get("confirmed")]
+            if cf_confirmed:
+                emit_ir("message", {"role": "assistant", "text": f"**CloudFront/CDN origin hunt**: confirmed **{len(cf_confirmed)}** direct origin IPs via historical DNS + crt.sh + origin-subdomain probing."})
+            # merge any newly-confirmed origins into the main bb_origins list
+            existing = {(o.get('ip')) for o in (data.get('bb_origins') or [])}
+            for o in cf_confirmed:
+                if o.get("ip") and o["ip"] not in existing:
+                    data.setdefault("bb_origins", []).append(o)
+        emit_ir("tool.result", {"call_id": f"bb-cfhunt-{eid}", "status": "ok" if cf_report and cf_report.get("origin_ips") else "empty", "result": f"{len((cf_report or {}).get('origin_ips', [])) if cf_report else 0} origin IPs, {len((cf_report or {}).get('cdn_edges', [])) if cf_report else 0} CDN edges filtered"})
+
         emit_ir("health.assessment", {"score": 0.6 if len(data.get("bb_takeover", [])) + len(data.get("bb_cors", [])) + len(data.get("bb_open_redirect", [])) > 0 else 0.8, "signals": ["bug_bounty_scan"]})
 
         # Phase 12: AI Assessment
@@ -3913,6 +3982,15 @@ def run_oneshot(eid):
                 summary_lines.append(f"Origin re-test discrepancies: {len(data['bb_origin_retest'])}")
                 for r in data["bb_origin_retest"][:8]:
                     summary_lines.append(f"  Origin {r.get('origin_ip')} {r.get('path')}: origin HTTP {r.get('origin_status')}({r.get('origin_len')}b) vs CDN HTTP {r.get('cdn_status')} [{r.get('issue')}]")
+            cf_hunt = data.get("bb_cf_hunt", {})
+            if cf_hunt.get("origin_ips"):
+                cf_confirmed = [o for o in cf_hunt["origin_ips"] if o.get("confirmed")]
+                if cf_confirmed:
+                    summary_lines.append(f"Dedicated CDN origin hunt: {len(cf_confirmed)} confirmed origins: " + ", ".join(f"{o['ip']} ({o.get('evidence','')[:40]})" for o in cf_confirmed[:6]))
+                if cf_hunt.get("cloudfront"):
+                    summary_lines.append(f"CloudFront confirmed (POP {cf_hunt.get('cloudfront_pop') or 'n/a'})")
+                if cf_hunt.get("cdn_edges"):
+                    summary_lines.append(f"CDN edges filtered: {len(cf_hunt['cdn_edges'])}")
 
             ai_prompt = f"""You are a senior penetration tester writing a breach assessment from ACTUAL scan data. The data below is the complete result of a live scan — treat it as ground truth, never invent findings that are not present.
 
