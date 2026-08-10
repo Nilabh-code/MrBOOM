@@ -362,7 +362,7 @@ def save_scan_history(eid):
         "events": eng.get("events", [])[-200:],
     }
     # Include BB findings if they exist
-    for key in ["bb_takeover","bb_cors","bb_open_redirect","bb_injection","bb_webapp","bb_health_endpoints","bb_dirbust","bb_tech","secrets","pd_nuclei","missing_security_headers","wayback","bb_new_subdomains","api_endpoints","subdomains","ports","http","waf","csp","s3","origins","whois","dns","bb_origins","bb_login","bb_sourcemap","bb_wayback","bb_default_creds","bb_jwt","ai_0day_hypotheses","bb_api","bb_js","bb_waf","bb_openapi","bb_origin_retest","bb_cf_hunt","bb_attack"]:
+    for key in ["bb_takeover","bb_cors","bb_open_redirect","bb_injection","bb_webapp","bb_health_endpoints","bb_dirbust","bb_tech","secrets","pd_nuclei","missing_security_headers","wayback","bb_new_subdomains","api_endpoints","subdomains","ports","http","waf","csp","s3","origins","whois","dns","bb_origins","bb_login","bb_sourcemap","bb_wayback","bb_default_creds","bb_jwt","ai_0day_hypotheses","bb_api","bb_js","bb_waf","bb_openapi","bb_origin_retest","bb_cf_hunt","bb_attack","bb_ptt","bb_agentic"]:
         val = eng.get(key)
         if val:
             record[key] = val
@@ -2176,6 +2176,147 @@ def _extract_forms(body, base_url):
         forms.append((action_url, method, list(set(fields))))
     return forms
 
+def _build_task_tree(data, attack_results, subs, http_results):
+    """Build a Pentesting Task Tree (PTT) from scan data — a live, structured
+    view of every stage, its tasks, and resolution status (done / pending /
+    unresolved). Mirrors PentestGPT's PTT concept for our pipeline."""
+    nodes = []
+    stages = []
+
+    def add(stage, task, status="pending", detail="", url="", severity=""):
+        stages.append(stage)
+        nodes.append({
+            "stage": stage, "task": task, "status": status,
+            "detail": detail, "url": url, "severity": severity,
+        })
+
+    live = sum(1 for v in (http_results or {}).values() if v.get("status") in (200, 301, 302))
+    add("Recon", "Subdomain discovery", "done", f"{len(subs)} subdomains found")
+    add("Recon", "Live host discovery", "done", f"{live} live HTTP services")
+    add("Recon", "Port scanning", "done", "top TCP ports scanned")
+    add("Recon", "Tech fingerprinting", "done", f"{sum(1 for t in (data.get('bb_tech') or {}).values() if t)} hosts fingerprinted")
+    add("Recon", "WAF / CDN detection", "done", data.get("waf") or "none detected")
+
+    if data.get("bb_takeover"):
+        vuln = [t for t in data["bb_takeover"] if t.get("vulnerable")]
+        add("Attack Surface", "Subdomain takeover", "unresolved" if vuln else "done",
+            f"{len(vuln)} vulnerable" if vuln else "no takeover", url=vuln[0].get("subdomain", "") if vuln else "")
+    else:
+        add("Attack Surface", "Subdomain takeover", "done", "not tested")
+
+    if data.get("bb_cors"):
+        add("Attack Surface", "CORS misconfiguration", "unresolved", f"{len(data['bb_cors'])} CORS issues",
+            severity="medium")
+    else:
+        add("Attack Surface", "CORS misconfiguration", "done", "no issues")
+
+    if data.get("bb_open_redirect"):
+        add("Attack Surface", "Open redirect", "unresolved", f"{len(data['bb_open_redirect'])} redirects")
+    else:
+        add("Attack Surface", "Open redirect", "done", "none")
+
+    if data.get("bb_origins"):
+        confirmed = [o for o in data["bb_origins"] if o.get("confirmed")]
+        add("Attack Surface", "Origin IP / CDN bypass", "unresolved" if confirmed else "done",
+            f"{len(confirmed)} confirmed origin IPs", severity="medium")
+    else:
+        add("Attack Surface", "Origin IP / CDN bypass", "done", "none")
+
+    dirs = sum(len(v) for v in (data.get("bb_dirbust") or {}).values())
+    add("Discovery", "Directory enumeration", "done" if dirs else "done", f"{dirs} paths found")
+
+    if data.get("bb_health_endpoints"):
+        add("Discovery", "Exposed endpoints", "unresolved", f"{len(data['bb_health_endpoints'])} exposed", severity="low")
+    else:
+        add("Discovery", "Exposed endpoints", "done", "none")
+
+    for f in (attack_results or []):
+        sev = f.get("severity", "low")
+        status = "unresolved" if sev in ("critical", "high", "medium") else "pending"
+        add(f.get("type", "Exploit"), f.get("title") or f.get("type", "finding"), status,
+            f.get("evidence", "")[:120], url=f.get("url", ""), severity=sev)
+
+    return {"nodes": nodes, "stages": sorted(set(stages))}
+
+def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iterations=4, emit=None):
+    """PentestGPT-style autonomous loop: the LLM proposes the next concrete
+    exploit action from current findings, the harness executes it, and the
+    outcome feeds back as context for the next proposal. Safe, read-only,
+    bounded probes — never destructive, never privilege-escalating."""
+    import json as _json
+    steps = []
+    history = []
+    base_urls = [u for u in (urls or []) if "://" in u][:6]
+
+    def _safe_exec(command):
+        """Parse an LLM-proposed command string like
+        'GET /api/user?id=1' or 'GET https://host/path' into a real request."""
+        command = (command or "").strip()
+        try:
+            parts = command.split()
+            method = parts[0].upper() if parts else "GET"
+            target = parts[1] if len(parts) > 1 else ""
+            if not target.startswith("http"):
+                host = base_urls[0].split("?")[0] if base_urls else f"https://{domain}/"
+                base = host.rstrip("/")
+                if target.startswith("/"):
+                    target = base + target
+                else:
+                    target = base + "/" + target
+            if method in ("GET", "POST"):
+                headers = {}
+                body = None
+                if method == "POST" and len(parts) > 2 and "=" in command:
+                    try:
+                        body = "&".join(parts[2:])
+                    except Exception:
+                        body = None
+                st, hdrs, body_txt = http_get_retry(target, timeout=8, extra_headers=headers)
+                return {"status": st, "evidence": (body_txt or "")[:300], "method": method, "url": target}
+            return {"status": 0, "evidence": "unsupported method"}
+        except Exception as e:
+            return {"status": 0, "evidence": f"exec error: {e}"}
+
+    for i in range(iterations):
+        try:
+            prompt_lines = [
+                "You are driving an autonomous penetration test as the 'generation' session.",
+                f"Target: {domain}",
+                "Findings so far:",
+                *(f"- {f.get('severity','?')}: {f.get('type','?')} @ {f.get('url','?')} ({f.get('evidence','')[:120]})"
+                  for f in (data.get('bb_attack') or [])[:8]),
+                *(f"- origin IP {o.get('ip')} ({o.get('host','')})" for o in (data.get('bb_origins') or [])[:5] if o.get('confirmed')),
+                "Previous steps:",
+                *(f"- {s.get('command')} -> {s.get('outcome')} ({s.get('evidence','')[:100]})" for s in history),
+                "",
+                "Propose ONE next concrete, LOW-RISK read-only probe (a single GET/POST request) that could confirm or extend a finding.",
+                "Reply with ONLY a single line: GET <url-with-param> or POST <url> key=value",
+                "If no further safe step is worthwhile, reply exactly: DONE",
+            ]
+            resp = call_model(base_url, model, api_key, [
+                {"role": "system", "content": "You are a methodical penetration tester. Output only the command line."},
+                {"role": "user", "content": "\n".join(prompt_lines)},
+            ], timeout=60)
+            if resp.startswith("AI_ERROR"):
+                break
+            command = resp.strip().splitlines()[0].strip()
+            if command.upper() == "DONE" or not command:
+                break
+            result = _safe_exec(command)
+            outcome = "ok" if result.get("status") in (200, 301, 302) else ("found" if result.get("status") and result.get("status") < 400 else "no-signal")
+            step = {
+                "iter": i + 1, "command": command[:200], "method": result.get("method", "GET"),
+                "url": result.get("url", ""), "status": result.get("status"),
+                "outcome": outcome, "evidence": result.get("evidence", "")[:300],
+            }
+            steps.append(step)
+            history.append(step)
+            if emit:
+                emit(f"*Agentic step {i+1}*: `{command[:120]}` → `{outcome}` ({result.get('status')})")
+        except Exception:
+            break
+    return steps
+
 def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
     """Full active attack battery. Builds its own attack surface from every
     live host plus common paths plus API endpoints, then probes GET and POST
@@ -2991,6 +3132,13 @@ def generate_report(data):
         sev_summary = ", ".join(f"{k.upper()} {v}" for k, v in sorted(attack_by_sev.items()))
         lines.append(f"- **Active Exploit Findings:** {len(attack)} ({sev_summary})")
         lines.append(f"- **Exploitable Types:** {', '.join(sorted(set(f.get('type', '?') for f in attack))[:8])}")
+    ptt = data.get("bb_ptt")
+    if ptt and ptt.get("nodes"):
+        unresolved = [n for n in ptt["nodes"] if n.get("status") == "unresolved"]
+        lines.append(f"- **Pentest Task Tree:** {len(ptt['nodes'])} tasks across {len(ptt.get('stages', []))} stages ({len(unresolved)} unresolved)")
+    agentic = data.get("bb_agentic")
+    if agentic:
+        lines.append(f"- **Agentic Exploit Steps:** {len(agentic)} LLM-proposed probes executed")
     lines.append("")
 
     if data.get("ai_analysis"):
@@ -3281,6 +3429,29 @@ def generate_report(data):
             if f.get("elapsed_s"):
                 lines.append(f"- **Observed delay:** {f['elapsed_s']}s")
             lines.append("")
+        lines.append("")
+
+    ptt = data.get("bb_ptt")
+    if ptt and ptt.get("nodes"):
+        lines.append("## Pentest Task Tree (PTT)")
+        lines.append("")
+        lines.append("| Stage | Task | Status | Detail |")
+        lines.append("|-------|------|--------|--------|")
+        for n in ptt["nodes"]:
+            icon = {"done": "✅", "pending": "⏳", "unresolved": "⚠️"}.get(n.get("status", "pending"), "❓")
+            detail = str(n.get("detail") or "")[:80].replace("|", "/")
+            lines.append(f"| {n.get('stage','?')} | {n.get('task','?')} | {icon} {n.get('status','?')} | {detail} |")
+        lines.append("")
+
+    agentic = data.get("bb_agentic")
+    if agentic:
+        lines.append("## Agentic Exploit Loop (LLM-proposed)")
+        lines.append("")
+        lines.append("| Iter | Command | Method | Status | Outcome | Evidence |")
+        lines.append("|------|---------|--------|--------|---------|----------|")
+        for s in agentic:
+            ev = (s.get("evidence") or "")[:80].replace("|", "/")
+            lines.append(f"| {s.get('iter','?')} | `{s.get('command','')[:90]}` | {s.get('method','GET')} | {s.get('status','?')} | {s.get('outcome','')} | {ev} |")
         lines.append("")
 
     health = data.get("bb_health_endpoints", [])
@@ -4461,6 +4632,32 @@ def run_oneshot(eid):
                 emit_ir("message", {"role": "assistant", "text": f"**{f.get('severity','').upper()}**: {f.get('type','?')} at `{f.get('url','?')}` ({f.get('evidence','')})"})
         emit_ir("tool.result", {"call_id": f"bb-attack-{eid}", "status": "ok" if attack_results else "empty", "result": f"{len(attack_results)} exploit probes"})
 
+        # BB23: Pentest Task Tree (PTT) + agentic exploit loop (PentestGPT-style).
+        # Builds a live task tree of the engagement and, when a model is configured,
+        # runs an autonomous loop: LLM proposes the next concrete exploit step based
+        # on current findings -> harness executes it -> results feed back in.
+        log_state("Building Pentest Task Tree (PTT)...")
+        emit_ir("tool.call", {"call_id": f"bb-ptt-{eid}", "name": "Pentest Task Tree", "target": domain, "category": "read"})
+        ptt = _build_task_tree(data, attack_results, subs, http_results)
+        data["bb_ptt"] = ptt
+        done_tasks = sum(1 for n in ptt.get("nodes", []) if n.get("status") == "done")
+        total_tasks = len(ptt.get("nodes", []))
+        emit_ir("message", {"role": "assistant", "text": f"**Pentest Task Tree**: {done_tasks}/{total_tasks} tasks resolved across {len(ptt.get('stages', []))} stages."})
+        emit_ir("tool.result", {"call_id": f"bb-ptt-{eid}", "status": "ok" if total_tasks else "empty", "result": f"{done_tasks}/{total_tasks} tasks resolved"})
+
+        agentic = []
+        if base_url and model and api_key and (attack_results or data.get("bb_origins") or data.get("bb_cors")):
+            log_state("Running autonomous agentic exploit loop (LLM-proposed steps)...")
+            emit_ir("tool.call", {"call_id": f"bb-agentic-{eid}", "name": "Agentic exploit loop", "target": domain, "category": "exploit"})
+            agentic = _agentic_exploit_loop(domain, live_urls, data, base_url, model, api_key, iterations=4, emit=lambda m: emit_ir("message", {"role": "assistant", "text": m}))
+            data["bb_agentic"] = agentic
+            emit_ir("message", {"role": "assistant", "text": f"**Agentic exploit loop**: executed **{len(agentic)}** LLM-proposed steps."})
+            for step in agentic:
+                emit_ir("message", {"role": "assistant", "text": f"Step `{step.get('command','')[:80]}` → **{step.get('outcome','')}** ({step.get('evidence','')[:160]})"})
+            emit_ir("tool.result", {"call_id": f"bb-agentic-{eid}", "status": "ok" if agentic else "empty", "result": f"{len(agentic)} steps executed"})
+        else:
+            emit_ir("tool.result", {"call_id": f"bb-agentic-{eid}", "status": "skipped", "result": "no model or no findings to pursue"})
+
         emit_ir("health.assessment", {"score": 0.6 if len(data.get("bb_takeover", [])) + len(data.get("bb_cors", [])) + len(data.get("bb_open_redirect", [])) > 0 else 0.8, "signals": ["bug_bounty_scan"]})
 
         # Phase 12: AI Assessment
@@ -4937,6 +5134,40 @@ def chat_engagement(eid: str, req: ChatRequest):
             elif t == "verification":
                 summaries.append(f"Check {p.get('command','?')}: {'passed' if p.get('passed') else 'failed'}")
         context = "Engagement findings:\n" + "\n".join(summaries[-15:])
+
+    # PentestGPT-style interactive session commands against the task tree
+    cmd = req.message.strip().lower()
+    ptt = eng.get("bb_ptt")
+    if cmd in ("next", "todo", "ptt", "tasks") and ptt:
+        nodes = ptt.get("nodes", [])
+        unresolved = [n for n in nodes if n.get("status") == "unresolved"]
+        pending = [n for n in nodes if n.get("status") == "pending"]
+        reply = {"role": "assistant",
+                 "text": (f"**Pentest Task Tree** — {len(nodes)} tasks / {len(ptt.get('stages', []))} stages.\n\n"
+                          + ("**⚠️ Unresolved findings:**\n" + "\n".join(f"- {n.get('task','?')} ({n.get('stage','?')}) — {n.get('detail','')}" for n in unresolved[:10]) if unresolved else "No unresolved findings.")
+                          + ("\n\n**⏳ Pending follow-ups:**\n" + "\n".join(f"- {n.get('task','?')} ({n.get('stage','?')})" for n in pending[:10]) if pending else "")),
+                 "ts": now()}
+        eng["chat"].append({"role": "user", "text": req.message, "ts": now()})
+        eng["chat"].append(reply)
+        ev = {"type": "chat.message", "ts": datetime.now(timezone.utc).isoformat(), "source": {"pair": {"harness": "chat", "model": model}}, "payload": {"role": "user", "text": req.message}, "task_id": eid}
+        emit_sync("ir", ev)
+        ev2 = {"type": "chat.message", "ts": datetime.now(timezone.utc).isoformat(), "source": {"pair": {"harness": "chat", "model": model}}, "payload": reply, "task_id": eid}
+        emit_sync("ir", ev2)
+        return {"reply": reply["text"]}
+    if cmd.startswith("discuss ") and ptt:
+        term = req.message.strip()[8:].lower()
+        hits = [n for n in ptt.get("nodes", []) if term in (n.get("task") or "").lower() or term in (n.get("stage") or "").lower() or term in (n.get("url") or "").lower()]
+        reply = {"role": "assistant",
+                 "text": ("**Discuss: " + req.message.strip()[8:] + "**\n\n" +
+                          "\n".join(f"- {n.get('stage','?')} / {n.get('task','?')} — `{n.get('status','?')}` — {n.get('detail','')}" for n in hits[:10])
+                          if hits else f"No task tree node matches '{req.message.strip()[8:]}'."),
+                 "ts": now()}
+        eng["chat"].append({"role": "user", "text": req.message, "ts": now()})
+        eng["chat"].append(reply)
+        emit_sync("ir", {"type": "chat.message", "ts": datetime.now(timezone.utc).isoformat(), "source": {"pair": {"harness": "chat", "model": model}}, "payload": {"role": "user", "text": req.message}, "task_id": eid})
+        emit_sync("ir", {"type": "chat.message", "ts": datetime.now(timezone.utc).isoformat(), "source": {"pair": {"harness": "chat", "model": model}}, "payload": reply, "task_id": eid})
+        return {"reply": reply["text"]}
+
     messages = [{"role": "system", "content": f"You are a senior penetration testing assistant. You have access to the following engagement context:\n\n{context}\n\nAnswer the user's follow-up questions about this engagement concisely and technically."}]
     for m in eng["chat"][-10:]:
         messages.append({"role": "user" if m["role"] == "user" else "assistant", "content": m["text"]})
