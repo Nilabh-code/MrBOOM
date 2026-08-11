@@ -396,6 +396,116 @@ def delete_scan_history(eid):
             try: os.remove(rp)
             except: pass
 
+# ─── CROSS-SCAN MEMORY ──────────────────────────────────────────────────
+# Persistent per-target knowledge base: discoveries, probed endpoints, and
+# known vulnerabilities accumulate across runs so every rescan starts from
+# what previous scans already learned instead of a blank slate.
+
+MEMORY_DIR = os.path.join(DATA_DIR, "scan_memory")
+
+def _memory_path(domain):
+    return os.path.join(MEMORY_DIR, f"{domain.replace('.', '_').replace('/', '_')}_memory.json")
+
+def _load_scan_memory(domain=""):
+    """Load the knowledge base accumulated for a target across prior scans."""
+    api_eps, fuzz_paths, openapi_eps, origins, findings, validations, probes = [], [], [], [], [], [], []
+    paths = [_memory_path(domain), _memory_path(apex_domain(domain))] if domain else []
+    for p in paths:
+        try:
+            if not os.path.exists(p): continue
+            with open(p, "r", encoding="utf-8") as f:
+                mem = json.load(f)
+            api_eps.extend(mem.get("api_endpoints", []))
+            fuzz_paths.extend(mem.get("fuzz_paths", []))
+            openapi_eps.extend(mem.get("openapi_endpoints", []))
+            origins.extend(mem.get("origins", []))
+            findings.extend(mem.get("findings", []))
+            validations.extend(mem.get("validations", []))
+            probes.extend(mem.get("probes", []))
+        except Exception:
+            continue
+    # dedupe while keeping order
+    return {
+        "api_endpoints": list(dict.fromkeys(api_eps))[:120],
+        "fuzz_paths": list(dict.fromkeys(fuzz_paths))[:120],
+        "openapi_endpoints": list(dict.fromkeys(openapi_eps))[:80],
+        "origins": list(dict.fromkeys(origins))[:30],
+        "findings": list({(f.get('type',''), f.get('url','')): f for f in findings}.values())[:80],
+        "validations": list({(f.get('type',''), f.get('url','')): f for f in validations}.values())[:80],
+        "probes": probes[-40:],
+    }
+
+def save_scan_memory(domain, data):
+    """Merge this run's discoveries into the per-target knowledge base."""
+    try:
+        os.makedirs(MEMORY_DIR, exist_ok=True)
+        path = _memory_path(domain)
+        prev = {"api_endpoints": [], "fuzz_paths": [], "openapi_endpoints": [],
+                "origins": [], "findings": [], "validations": [], "probes": []}
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    prev = json.load(f)
+            except Exception:
+                pass
+        now_ts = datetime.now(timezone.utc).isoformat()
+        for k, getter in [
+            ("api_endpoints", lambda: data.get("api_endpoints", [])),
+            ("openapi_endpoints", lambda: [e for r in (data.get("bb_openapi") or []) if r.get("kind") == "openapi_paths" for e in (r.get("endpoints") or [])]),
+            ("origins", lambda: [o.get("ip") for o in (data.get("bb_origins") or []) if o.get("confirmed") and o.get("ip")]),
+        ]:
+            prev[k] = list(dict.fromkeys(list(prev.get(k, [])) + list(getter())))[:200]
+        for k in ("findings", "validations"):
+            src = data.get(k, [])
+            merged = list(prev.get(k, []))
+            merged += [{**f, "first_seen": now_ts} for f in src if (f.get('type',''), f.get('url','')) not in {(x.get('type',''), x.get('url','')) for x in merged}]
+            prev[k] = merged[-120:]
+        # probed agentic endpoints + fuzz results
+        fuzz_seen = [], 
+        prev["probes"] = list(prev.get("probes", [])) + [
+            {"iter": s.get("iter"), "url": s.get("url"), "outcome": s.get("outcome"),
+             "status": s.get("status"), "first_seen": now_ts}
+            for s in (data.get("bb_agentic") or []) if s.get("url")
+        ]
+        prev["probes"] = prev["probes"][-80:]
+        prev["fuzz_paths"] = list(dict.fromkeys(list(prev.get("fuzz_paths", [])) + [
+            (f.get("url"), f.get("status"), f.get("size", 0)) for f in (data.get("bb_fuzz") or []) if f.get("url")
+        ]))[:200]
+        prev["last_scan"] = now_ts
+        prev["runs"] = int(prev.get("runs", 0)) + 1
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(prev, f, indent=2, default=str)
+        os.replace(tmp, path)
+        return True
+    except Exception:
+        return False
+
+def _memory_prompt(domain, data):
+    """Build the 'known from previous scans' block injected into agentic prompts."""
+    mem = data.get("scan_memory") or {}
+    lines = []
+    findings = mem.get("findings", [])
+    probes = mem.get("probes", [])
+    api_eps = mem.get("api_endpoints", [])
+    if findings or probes or api_eps:
+        lines.append("PREVIOUS SCAN MEMORY (from earlier engagements on this target — trust but re-verify):")
+        if findings:
+            lines.append("Known vulnerabilities previously confirmed:")
+            for f in findings[-25:]:
+                lines.append(f"- {f.get('severity','?')}: {f.get('type','?')} @ {f.get('url','?')} ({str(f.get('evidence',''))[:90]})")
+        if api_eps:
+            lines.append("Previously discovered API/spec endpoints:")
+            for e in api_eps[-25:]:
+                lines.append(f"- {e}")
+        if probes:
+            seen_ok = [p for p in probes if p.get("outcome") in ("api-open", "ok", "auth-bypass")]
+            if seen_ok:
+                lines.append("Previously probed endpoints that responded (worth re-visiting / deepening):")
+                for p in seen_ok[-15:]:
+                    lines.append(f"- {p.get('url','?')} -> {p.get('outcome','?')} (HTTP {p.get('status')})")
+    return "\n".join(lines)
+
 # ─── SSE MANAGER ─────────────────────────────────────────────────────────
 
 class SSEManager:
@@ -2382,7 +2492,24 @@ def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iteratio
         for o in (data.get("bb_origins") or []):
             if o.get("confirmed") and o.get("ip"):
                 _add_surface(surface, seen, f"http://{o['ip']}/", "origin")
-        return surface[:40]
+        # Cross-scan memory: previously confirmed-responding endpoints + API paths
+        mem = data.get("scan_memory") or {}
+        for ep in (mem.get("api_endpoints") or [])[:30]:
+            if ep.startswith("http"):
+                _add_surface(surface, seen, ep, "mem-api")
+            elif roots:
+                _add_surface(surface, seen, roots[0] + ep, "mem-api")
+        for p in (mem.get("probes") or [])[:30]:
+            pu = p.get("url", "")
+            if p.get("outcome") in ("api-open", "ok", "auth-bypass") and pu.startswith("http"):
+                _add_surface(surface, seen, pu, "mem-probe")
+        for ip in (mem.get("origins") or [])[:10]:
+            _add_surface(surface, seen, f"http://{ip}/", "mem-origin")
+        for f in (mem.get("findings") or [])[:30]:
+            fu = f.get("url", "")
+            if fu.startswith("http"):
+                _add_surface(surface, seen, fu, "mem-confirmed")
+        return surface[:60]
 
     def _safe_exec(command):
         """Parse an LLM-proposed command string like
@@ -4175,6 +4302,14 @@ def run_oneshot(eid):
 
     meta_up(status="running")
     data = {"domain": domain, "model": model}
+
+    # Load cross-scan memory for this target so recon/probes benefit from prior scans.
+    data["scan_memory"] = _load_scan_memory(domain)
+    mem = data["scan_memory"]
+    if any(mem.values()):
+        mem_hits = len(mem.get("findings", [])) + len(mem.get("api_endpoints", [])) + len(mem.get("probes", [])) + len(mem.get("validations", []))
+        log_state(f"Scan memory: {mem_hits} prior discoveries loaded for {domain}.")
+        emit_ir("message", {"role": "assistant", "text": f"Loaded **scan memory** for **{domain}**: {mem_hits} prior discoveries (API endpoints, validations, probed paths, confirmed vulnerabilities) will guide this run."})
 
     try:
         # Phase 1: DNS
