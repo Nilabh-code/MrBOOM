@@ -62,6 +62,19 @@ uvicorn app:app --host 0.0.0.0 --port 8090
   - SSRF (cloud-metadata + internal network)
   - SQLi authentication bypass + XSS on login forms
   - Per-phase probe budgets, live-URL-first prioritization, stealth throttling
+- **BB22b Web Configuration Validations** (`webvalidations.py`) — configuration-level checks that complement exploit probing:
+  - TLS protocol version + weak cipher suites (RC4/DES/3DES/CBC) via live handshake
+  - TLS certificate expiry, self-signed certs, issuer disclosure
+  - Dangerous HTTP methods (TRACE → XST, PUT upload, permissive OPTIONS)
+  - Cookie flags audit (Secure / HttpOnly / SameSite)
+  - Directory listing detection, admin/auth path exposure, unauthenticated API JSON exposure
+  - Information disclosure (server banner, X-Powered-By, stack traces)
+  - Login rate limiting, security.txt presence, CORS credential/reflect behavior
+  - Host-header injection + cache-poisoning indicators, weak/missing CSP, clickjacking
+  - CRLF header injection, open redirects
+- **BB23 Pentest Task Tree (PTT) + Agentic Exploit Loop** (PentestGPT-style):
+  - Live task tree of every stage and its resolution status
+  - Autonomous loop: LLM proposes the next concrete probe **from the real recon surface** (OpenAPI paths, JS-discovered API endpoints, dirbust results, confirmed origin IPs), the harness executes it, and outcomes feed back. Auto-retries blocked-auth endpoints with a forged `alg=none` JWT to test authz bypass.
 - Directory busting (wordlist, catch-all / SPA false-positive filtering)
 - Subdomain takeover, CORS misconfiguration, open redirect, basic injection scan
 - Hardcoded secret scanning, exposed debug/health endpoints, source-map extraction
@@ -69,15 +82,16 @@ uvicorn app:app --host 0.0.0.0 --port 8090
 - JWT / API auth bypass checks, deep JS asset analysis
 - WAF fingerprint + bypass probes, OpenAPI/Swagger/GraphQL discovery
 - Direct origin re-test, **CloudFront origin hunt** (BB21) via historical DNS + crt.sh
+- **Content fuzzing** — auto-detects `ffuf` / `gobuster` and fuzzes live hosts with the harness wordlist (falls back to seclists if present); `assetfinder` adds passive subdomains
 - Client-side validation: cookie flags, CSP bypass indicators, clickjacking (missing headers), HTTP methods
 
 ## Dashboard
 
 - **Live SSE feed** — every phase, tool call, and finding streams into the UI in real time
-- **Findings tab** — severity-banded cards for every result type (exploits, origins, creds, JWT, headers, etc.)
+- **Findings tab** — severity-banded cards for every result type (exploits, config validations, fuzz paths, origins, creds, JWT, headers, agentic steps, etc.)
 - **Phase progress** bar, health score chart, pair/relay timeline, elapsed timer
 - **Scan history** — past scans persist to `scan_history/`, restorable with full events and report
-- **Report export** — Markdown, HTML, and PDF download
+- **Report export** — Markdown, HTML, and PDF download; includes a dedicated **Web Configuration Validations** table with per-check fixes
 - **AI Chat** — ask follow-up questions about the finished scan
 - **Dark/light theme**, mock demo mode (no model needed)
 

