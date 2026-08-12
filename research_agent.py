@@ -120,25 +120,44 @@ def summarize(repo):
             "entry_points": entry_hints[:15], "file_list": [os.path.relpath(f, repo) for f in files[:200]]}
 
 # ─── Hypothesis generation ─────────────────────────────────────────────
-def hypothesize(surface, base_url="", model="", api_key="", prior=None, n=5):
+def hypothesize(surface, base_url="", model="", api_key="", prior=None, n=5, target=""):
     """LLM proposes hypotheses. Returns list of dicts."""
     if not (base_url and model):
         return []  # deterministic mode uses sink-probe below
     prior_blob = ""
     if prior:
         prior_blob = "\nPrevious hypotheses & results (do not repeat failures):\n" + json.dumps(prior, indent=1)[:2500]
+    target_blob = ""
+    if target:
+        target_blob = (f"\nAUTHORIZED TARGET IS LIVE at {target} (OWASP Juice Shop-style lab). "
+                       f"Write PoCs as REAL HTTP requests to {target} using ONLY the python "
+                       f"standard library (urllib.request). The PoC must open a URL, send "
+                       f"requests/params/payloads, and print TRIGGERED:TRUE exact and only when "
+                       f"the bug actually fires (e.g. error text, injected marker reflected, "
+                       f"non-200 vs expected). It must exit cleanly otherwise.")
     out = _llm(base_url, model, api_key,
-        "You are a vulnerability researcher running a Big Sleep-style hunt. Given the "
-        "target's source map, propose the most promising vulnerability hypotheses. "
-        "Each must be CONCRETE and testable: name the exact file, the flawed logic, "
-        "and a minimal PoC approach (inputs, sequence of calls). Prioritize reachable "
-        "user-input paths. Do NOT write weaponized exploits — PoC is a triggering "
-        "test, not a payload for a live target. "
+        "You are a vulnerability researcher running a Big Sleep-style hunt against an AUTHORIZED "
+        "test lab. Given the target's source map, propose the most promising vulnerability "
+        "hypotheses. Each must be CONCRETE and testable: name the exact file, the flawed logic, "
+        "and a minimal PoC approach. Prioritize reachable user-input HTTP paths. "
+        "Do NOT write weaponized exploits — PoC is a triggering test only. "
         'Reply ONLY with JSON list: [{"id":0,"bug_class":"...","location":"file:line/function",'
         '"reasoning":"why vulnerable","test_plan":"how to trigger in 2-3 steps",'
-        '"poc":"complete python3 PoC script that runs the target locally and prints '
-        'TRIGGERED:TRUE when the bug fires"}]',
+        '"poc":"complete python3 PoC script using urllib.request that sends HTTP requests to the '
+        'live target and prints TRIGGERED:TRUE exact when the bug fires"}]' + target_blob,
         f"Target surface: {json.dumps(surface, indent=1)[:3000]}{prior_blob}")
+    hyps = _parse_hypotheses(out, n)
+    if not hyps:
+        # one stricter retry — reasoning models occasionally emit prose first
+        out2 = _llm(base_url, model, api_key,
+            "Your previous reply was not valid JSON. Reply with ONLY a JSON array — no prose, "
+            "no markdown. Same schema: [{\"id\":0,\"bug_class\":\"...\",\"location\":\"...\","
+            "\"reasoning\":\"...\",\"test_plan\":\"...\",\"poc\":\"...\"}]",
+            f"Target surface: {json.dumps(surface, indent=1)[:1500]}{prior_blob}")
+        hyps = _parse_hypotheses(out2, n)
+    return hyps
+
+def _parse_hypotheses(out, n):
     if not out or out.startswith("__LLM_ERROR__"):
         return []
     data = _json_list(out)
@@ -210,18 +229,21 @@ def execute_poc(poc_code, sandbox="local", timeout=20):
         return {"exit_code": -1, "output_tail": f"exec error: {e}", "crashed": False, "triggered": False}
 
 # ─── Main loop ─────────────────────────────────────────────────────────
-def hunt(repo, rounds=3, sandbox="local", base_url="", model="", api_key="", out_dir=None):
+def hunt(repo, rounds=3, sandbox="local", base_url="", model="", api_key="", out_dir=None, target=""):
     out_dir = out_dir or tempfile.mkdtemp(prefix="mrboom-research-")
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     surface = summarize(repo)
-    log = {"surface": surface, "rounds": [], "findings": [], "confirmed": []}
+    log = {"surface": surface, "rounds": [], "findings": [], "confirmed": [], "target": target}
     prior = []
     for rnd in range(1, rounds + 1):
-        hyps = hypothesize(surface, base_url, model, api_key, prior=prior)
+        hyps = hypothesize(surface, base_url, model, api_key, prior=prior, target=target)
         if not hyps:
             if rnd == 1:
-                hyps = sink_probes(repo)  # deterministic fallback
-                log["mode"] = "deterministic sink-probe (no model)"
+                if not (base_url and model):
+                    hyps = sink_probes(repo)  # deterministic fallback
+                    log["mode"] = "deterministic sink-probe (no model)"
+                else:
+                    log["mode"] = "llm mode: no hypotheses generated this round"
             else:
                 break
         round_log = {"round": rnd, "hypotheses": []}
@@ -275,6 +297,7 @@ def main():
     ap.add_argument("--dest", default="/tmp/mrboom-research", help="clone destination")
     ap.add_argument("--rounds", type=int, default=3)
     ap.add_argument("--sandbox", default="local", choices=["local", "docker"])
+    ap.add_argument("--target", default="", help="live authorized target base URL (e.g. http://localhost:3000) so PoCs hit it via HTTP")
     ap.add_argument("--out", default=None)
     ap.add_argument("--base-url", default=os.environ.get("MRBOOM_BASE_URL", ""))
     ap.add_argument("--model", default=os.environ.get("MRBOOM_MODEL", ""))
@@ -282,7 +305,7 @@ def main():
     a = ap.parse_args()
     repo = clone_repo(a.repo, os.path.join(a.dest, a.repo.rstrip("/").split("/")[-1] or "repo"))
     log = hunt(repo, rounds=a.rounds, sandbox=a.sandbox, base_url=a.base_url,
-               model=a.model, api_key=a.api_key)
+               model=a.model, api_key=a.api_key, target=a.target)
     if a.out:
         Path(a.out).write_text(json.dumps(log, indent=2, default=str))
     print(json.dumps(log, indent=2, default=str))
