@@ -85,6 +85,34 @@ uvicorn app:app --host 0.0.0.0 --port 8090
 - **Content fuzzing** — auto-detects `ffuf` / `gobuster` and fuzzes live hosts with the harness wordlist (falls back to seclists if present); `assetfinder` adds passive subdomains
 - Client-side validation: cookie flags, CSP bypass indicators, clickjacking (missing headers), HTTP methods
 
+## 0-Day Discovery Modules (BB24)
+
+White-box hunting layer — fills the gap between "exploit known CVEs" and "find new bugs". Both modules run standalone (CLI), are exposed as MCP tools (`patchgap_scan`, `source_scan`), and are registered in the AI planner's tool catalog.
+
+### `patchgap.py` — Patch-Gap Hunter (1-day → 0-day)
+Turns known security fixes into NEW bug findings: scans a repo's git history for security-relevant commits, reverses the patch to reconstruct the vulnerable state, and asks the LLM whether the fix is **complete** — sibling sinks, bypass paths, suggested probes.
+
+```bash
+# deterministic mode (no model needed)
+python patchgap.py --repo https://github.com/pallets/werkzeug --commits 200
+
+# LLM mode (OpenAI-compatible endpoint)
+python patchgap.py --repo /path/to/repo --base-url http://localhost:11434/v1 --model gemma-4-12b
+
+# continuous monitoring (cron-friendly, one pass with --once)
+python patchgap.py --watch https://github.com/target/repo --interval 3600 --once
+```
+
+### `source_scan.py` — White-Box Source Scan (SAST + LLM triage)
+Finds the bug classes black-box testing can never see: eval/exec sinks, insecure deserialization, SQLi via string interpolation, path traversal, unsafe reflection — across Python, JS/TS, C/C++, Go, Java, Ruby, PHP. Deterministic sink detection + source-proximity scoring, then LLM triage judges real reachability (`input_chain`) and suggests probes.
+
+```bash
+python source_scan.py --repo https://github.com/target/repo --top 25
+python source_scan.py --repo . --base-url http://localhost:11434/v1 --model gemma-4-12b
+```
+
+Both emit findings in engine-compatible format (`title/asset/severity/detail`). LLM mode is strictly better; deterministic mode is the offline fallback.
+
 ## Dashboard
 
 - **Live SSE feed** — every phase, tool call, and finding streams into the UI in real time

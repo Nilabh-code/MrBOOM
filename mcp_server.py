@@ -382,6 +382,81 @@ def test_skill(
         "timeout": timeout,
     })
 
+# ─── 0-Day Discovery Tools (run standalone modules via subprocess) ──────
+
+def _run_module(script: str, args: list[str], timeout: int = 240) -> dict[str, Any]:
+    """Run a MrBOOM module script and return its JSON output."""
+    import json as _json
+    import subprocess, sys
+    here = os.path.dirname(os.path.abspath(__file__))
+    script_path = os.path.join(here, script)
+    if not os.path.exists(script_path):
+        return {"error": f"{script} not found next to mcp_server.py"}
+    cmd = [sys.executable, script_path] + args
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return {"error": f"timed out after {timeout}s"}
+    if r.returncode != 0:
+        return {"error": r.stderr[-800:] or f"exit {r.returncode}"}
+    try:
+        return _json.loads(r.stdout)
+    except _json.JSONDecodeError:
+        return {"error": f"non-JSON output: {r.stdout[-400:]}"}
+
+@mcp.tool
+def patchgap_scan(
+    repo: str,
+    commits: int = 50,
+    base_url: str = "",
+    model: str = "",
+    api_key: str = "",
+) -> dict[str, Any]:
+    """Patch-Gap Hunter: scan a repo's git history for security fixes and
+    hunt incomplete fixes / bypass paths (1-day -> 0-day discovery).
+
+    Args:
+        repo: Git URL or local path of the target repo.
+        commits: How many commits back to scan (default 50).
+        base_url: OpenAI-compatible base URL (optional; deterministic mode if empty).
+        model: Model name (optional).
+        api_key: API key (optional).
+
+    Returns:
+        Findings list (engine-compatible format).
+    """
+    args = ["--repo", repo, "--commits", str(commits)]
+    if base_url: args += ["--base-url", base_url]
+    if model: args += ["--model", model]
+    if api_key: args += ["--api-key", api_key]
+    return _run_module("patchgap.py", args)
+
+@mcp.tool
+def source_scan(
+    repo: str,
+    top: int = 25,
+    base_url: str = "",
+    model: str = "",
+    api_key: str = "",
+) -> dict[str, Any]:
+    """White-box source scan: SAST sink detection + LLM triage on a repo.
+
+    Args:
+        repo: Git URL or local path of the target repo.
+        top: Max candidates to triage (default 25).
+        base_url: OpenAI-compatible base URL (optional; deterministic mode if empty).
+        model: Model name (optional).
+        api_key: API key (optional).
+
+    Returns:
+        Findings list (engine-compatible format).
+    """
+    args = ["--repo", repo, "--top", str(top)]
+    if base_url: args += ["--base-url", base_url]
+    if model: args += ["--model", model]
+    if api_key: args += ["--api-key", api_key]
+    return _run_module("source_scan.py", args)
+
 # ─── Demo Tool ──────────────────────────────────────────────────────────
 
 @mcp.tool

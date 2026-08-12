@@ -17,6 +17,8 @@ TOOL_CATALOG = [
     {"name":"secret_scan","desc":"Scan a local repo for hardcoded secrets.","use_when":"a repo path is available and you want credential leaks"},
     {"name":"breach_assessment","desc":"Exploit analysis on open ports — model figures out breach paths from port scan data.","use_when":"open ports were found and you want offensive exploitation analysis"},
     {"name":"exploit","desc":"AUTO-EXPLOIT — no human in loop. Deliver reverse shells, inject SSH keys, deploy webshells, escalate privileges.","use_when":"breach paths are identified and you want actual access/shells"},
+    {"name":"patchgap","desc":"PATCH-GAP HUNTING — scan a repo's git history for security fixes, reverse the patches, and hunt incomplete fixes / bypass paths (1-day to 0-day discovery).","use_when":"a source repo (URL or local path) is available and you want NEW vulnerability discovery beyond known CVEs"},
+    {"name":"source_scan","desc":"WHITE-BOX SOURCE SCAN — SAST sink detection + LLM triage on a repo (eval/exec/deserialization/SQLi/path traversal). Catches what black-box misses.","use_when":"target source code is available (GitHub URL or local path) and you want logic/auth/injection bugs"},
 ]
 VALID = {t["name"] for t in TOOL_CATALOG}
 
@@ -41,11 +43,20 @@ def _extract_json(txt):
 
 def deterministic_plan(problem):
     p = (problem or "").lower()
-    if any(k in p for k in ("ai","agent","mcp","ollama","llm")): return ["httpx","aimap","nuclei","breach_assessment","exploit"]
-    if any(k in p for k in ("cve","vuln","patch","exploit")): return ["subfinder","httpx","nuclei","breach_assessment","exploit"]
-    if any(k in p for k in ("port","cidr","range","/24")): return ["naabu","httpx","nuclei","breach_assessment","exploit"]
-    if any(k in p for k in ("breach","hack","pwn","break","infiltrate","intrude","shell","access")): return ["subfinder","httpx","naabu","nuclei","breach_assessment","exploit"]
-    return ["subfinder","httpx","naabu","nuclei","aimap","breach_assessment","exploit"]
+    tools = ["subfinder", "httpx", "naabu", "nuclei", "aimap", "breach_assessment", "exploit"]
+    if any(k in p for k in ("patch", "0day", "zero-day", "0-day", "fix", "incomplete", "bypass", "cve hunt", "vuln research")):
+        tools = ["patchgap", "source_scan", "breach_assessment"]
+    elif any(k in p for k in ("source", "repo", "code scan", "sast", "white-box", "code review", "audit")):
+        tools = ["source_scan", "patchgap", "secret_scan"]
+    elif any(k in p for k in ("ai", "agent", "mcp", "ollama", "llm")):
+        tools = ["httpx", "aimap", "nuclei", "breach_assessment", "exploit"]
+    elif any(k in p for k in ("cve", "vuln", "exploit")):
+        tools = ["subfinder", "httpx", "nuclei", "breach_assessment", "exploit"]
+    elif any(k in p for k in ("port", "cidr", "range", "/24")):
+        tools = ["naabu", "httpx", "nuclei", "breach_assessment", "exploit"]
+    elif any(k in p for k in ("breach", "hack", "pwn", "break", "infiltrate", "intrude", "shell", "access")):
+        tools = ["subfinder", "httpx", "naabu", "nuclei", "breach_assessment", "exploit"]
+    return tools
 
 def plan(problem, scope, base_url, model, api_key="not-needed", max_steps=6):
     """Returns (ordered_tool_list, planner_source_label)."""
