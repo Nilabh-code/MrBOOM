@@ -61,10 +61,19 @@ def _llm(base_url, model, api_key, system, user, max_tokens=1900):
                        messages=[{"role": "system", "content": system},
                                  {"role": "user", "content": user}],
                        temperature=0.2, max_tokens=max_tokens)
-        try:
-            r = c.chat.completions.create(**_kwargs, extra_body={"chat_template_kwargs": {"enable_thinking": False}})
-        except Exception:
-            r = c.chat.completions.create(**_kwargs)
+        r = None
+        for _att in range(3):
+            try:
+                r = c.chat.completions.create(**_kwargs, extra_body={"chat_template_kwargs": {"enable_thinking": False}})
+                break
+            except Exception:
+                try:
+                    r = c.chat.completions.create(**_kwargs)
+                    break
+                except Exception as _le:
+                    if _att == 2:
+                        raise _le
+                    __import__("time").sleep(1.5)
         _m = r.choices[0].message
         txt = (_m.content or "").strip() or (getattr(_m, "reasoning_content", "") or "").strip()
         return txt
