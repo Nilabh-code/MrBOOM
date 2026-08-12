@@ -75,7 +75,12 @@ def _path_risky(files):
 
 def clone_repo(url, dest, depth=200):
     """Shallow-ish clone for speed. Returns repo path. Existing dirs are
-    refreshed best-effort: a transient fetch failure never crashes a watcher."""
+    refreshed best-effort: a transient fetch failure never crashes a watcher.
+    Plain local paths are used directly (no clone needed)."""
+    if "://" not in url and not url.startswith("git@"):
+        if Path(url).exists():
+            return str(Path(url))
+        raise RuntimeError(f"local path does not exist: {url}")
     dest = Path(dest)
     if (dest / ".git").exists() or dest.exists():
         try:
