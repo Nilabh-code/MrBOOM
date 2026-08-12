@@ -19,6 +19,10 @@ TOOL_CATALOG = [
     {"name":"exploit","desc":"AUTO-EXPLOIT — no human in loop. Deliver reverse shells, inject SSH keys, deploy webshells, escalate privileges.","use_when":"breach paths are identified and you want actual access/shells"},
     {"name":"patchgap","desc":"PATCH-GAP HUNTING — scan a repo's git history for security fixes, reverse the patches, and hunt incomplete fixes / bypass paths (1-day to 0-day discovery).","use_when":"a source repo (URL or local path) is available and you want NEW vulnerability discovery beyond known CVEs"},
     {"name":"source_scan","desc":"WHITE-BOX SOURCE SCAN — SAST sink detection + LLM triage on a repo (eval/exec/deserialization/SQLi/path traversal). Catches what black-box misses.","use_when":"target source code is available (GitHub URL or local path) and you want logic/auth/injection bugs"},
+    {"name":"fuzz","desc":"FUZZ ORCHESTRATOR — coverage-guided fuzzing (built-in mutation engine, libFuzzer/AFL++ when installed) with ASAN/UBSAN builds, crash dedupe + minimization + bug-class triage.","use_when":"you have a C/C++ target (repo or binary) and want to discover memory-safety bugs by feeding malformed input"},
+    {"name":"crash_exploit","desc":"CRASH->EXPLOIT PIPELINE — turns sanitizer crash reports into exploitation analysis: bug class, attacker control, realistic primitive, mitigations, PoC direction.","use_when":"a fuzz/sanitizer crash exists (or a crash report file) and you want exploitability assessment"},
+    {"name":"research_agent","desc":"BIG-SLEEP-STYLE RESEARCH AGENT — hypothesis-driven loop: read target source, propose vuln hypotheses, write PoCs, execute in sandbox, iterate on results.","use_when":"you want autonomous NEW-bug hunting on a source repo beyond known CVEs"},
+    {"name":"disclosure","desc":"RESPONSIBLE DISCLOSURE — GHSA-style advisory drafts, CVE request bodies, CVSS v3.1 scoring, disclosure timeline tracking.","use_when":"a vulnerability was confirmed and you need professional, coordinated disclosure documents"},
 ]
 VALID = {t["name"] for t in TOOL_CATALOG}
 
@@ -45,7 +49,11 @@ def deterministic_plan(problem):
     p = (problem or "").lower()
     tools = ["subfinder", "httpx", "naabu", "nuclei", "aimap", "breach_assessment", "exploit"]
     if any(k in p for k in ("patch", "0day", "zero-day", "0-day", "fix", "incomplete", "bypass", "cve hunt", "vuln research")):
-        tools = ["patchgap", "source_scan", "breach_assessment"]
+        tools = ["patchgap", "source_scan", "research_agent", "breach_assessment"]
+    elif any(k in p for k in ("fuzz", "crash", "sanitizer", "asan", "memory safety")):
+        tools = ["fuzz", "crash_exploit", "source_scan"]
+    elif any(k in p for k in ("disclose", "advisory", "cve request", "cvss", "timeline")):
+        tools = ["disclosure", "crash_exploit"]
     elif any(k in p for k in ("source", "repo", "code scan", "sast", "white-box", "code review", "audit")):
         tools = ["source_scan", "patchgap", "secret_scan"]
     elif any(k in p for k in ("ai", "agent", "mcp", "ollama", "llm")):

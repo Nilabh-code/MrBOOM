@@ -87,7 +87,7 @@ uvicorn app:app --host 0.0.0.0 --port 8090
 
 ## 0-Day Discovery Modules (BB24)
 
-White-box hunting layer — fills the gap between "exploit known CVEs" and "find new bugs". Both modules run standalone (CLI), are exposed as MCP tools (`patchgap_scan`, `source_scan`), and are registered in the AI planner's tool catalog.
+White-box hunting layer — fills the gap between "exploit known CVEs" and "find new bugs". All modules run standalone (CLI), are exposed as MCP tools, and are registered in the AI planner's tool catalog.
 
 ### `patchgap.py` — Patch-Gap Hunter (1-day → 0-day)
 Turns known security fixes into NEW bug findings: scans a repo's git history for security-relevant commits, reverses the patch to reconstruct the vulnerable state, and asks the LLM whether the fix is **complete** — sibling sinks, bypass paths, suggested probes.
@@ -111,7 +111,39 @@ python source_scan.py --repo https://github.com/target/repo --top 25
 python source_scan.py --repo . --base-url http://localhost:11434/v1 --model gemma-4-12b
 ```
 
-Both emit findings in engine-compatible format (`title/asset/severity/detail`). LLM mode is strictly better; deterministic mode is the offline fallback.
+### `fuzz_orchestrator.py` — LLM-Guided Fuzz Orchestrator
+Zero-dependency mutation engine (works with gcc + ASAN right now) plus libFuzzer/AFL++/honggfuzz backends when installed. Builds targets with ASAN+UBSAN, LLM-designed seeds + strategy, crash dedupe by stack fingerprint, greedy minimization, bug-class triage.
+
+```bash
+python fuzz_orchestrator.py --repo /path/to/c-repo --budget 120
+python fuzz_orchestrator.py --binary ./target --budget 60
+```
+
+### `crash_exploit.py` — Crash → Exploit-Primitive Pipeline
+Turns sanitizer crash reports into exploitation analysis: bug class, attacker control (READ/WRITE size, offset), realistic primitive (tcache poisoning, ROP, house-of-*), mitigations to bypass, PoC direction. Includes a bug-class → technique catalog and deterministic exploitability scoring.
+
+```bash
+python crash_exploit.py --report crash.stderr --input crash_0 --repo /path/to/src
+```
+
+### `research_agent.py` — Big Sleep-style Research Agent
+Hypothesis-driven hunting loop: summarizes the target surface → LLM proposes concrete vuln hypotheses (file, flawed logic, test plan, PoC script) → executes PoCs in a sandbox (local subprocess or Docker) → feeds results back → iterates. Deterministic fallback: sink-probe mode for Python targets.
+
+```bash
+python research_agent.py --repo https://github.com/target/repo --rounds 3 --sandbox local
+```
+
+### `disclosure.py` — Responsible Disclosure Workflow
+GHSA-style advisory drafts, CVE request bodies, a proper CVSS v3.1 base-score calculator, and a disclosure timeline tracker (90-day clock, vendor contact, publication). Generates documents only — never sends anything.
+
+```bash
+python disclosure.py cvss "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+python disclosure.py advisory --finding finding.json --vendor "Acme" --cvss "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+python disclosure.py timeline new --finding-id F1 --vendor Acme
+```
+
+**MCP tools:** `patchgap_scan`, `source_scan`, `fuzz_orchestrate`, `crash_analyze`, `research_hunt`, `draft_disclosure`.
+**Planner tools:** `patchgap`, `source_scan`, `fuzz`, `crash_exploit`, `research_agent`, `disclosure` — with deterministic keyword routing for 0-day/fuzz/disclosure problems.
 
 ## Dashboard
 

@@ -294,6 +294,10 @@ def scan_repo(repo, top=25, base_url="", model="", api_key=""):
     return findings
 
 def clone_repo(url, dest):
+    if "://" not in url and not url.startswith("git@"):
+        if Path(url).exists():
+            return str(Path(url))
+        raise RuntimeError(f"local path does not exist: {url}")
     dest = Path(dest)
     if dest.exists():
         return str(dest)

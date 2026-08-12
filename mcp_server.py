@@ -457,6 +457,135 @@ def source_scan(
     if api_key: args += ["--api-key", api_key]
     return _run_module("source_scan.py", args)
 
+def _run_module_text(script: str, args: list[str], timeout: int = 240) -> dict[str, Any]:
+    """Run a MrBOOM module script and return raw stdout (for text outputs)."""
+    import subprocess, sys
+    here = os.path.dirname(os.path.abspath(__file__))
+    script_path = os.path.join(here, script)
+    if not os.path.exists(script_path):
+        return {"error": f"{script} not found next to mcp_server.py"}
+    try:
+        r = subprocess.run([sys.executable, script_path] + args,
+                           capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return {"error": f"timed out after {timeout}s"}
+    if r.returncode != 0:
+        return {"error": r.stderr[-800:] or f"exit {r.returncode}"}
+    return {"output": r.stdout}
+
+@mcp.tool
+def fuzz_orchestrate(
+    repo: str = "",
+    binary: str = "",
+    budget: int = 60,
+    base_url: str = "",
+    model: str = "",
+    api_key: str = "",
+) -> dict[str, Any]:
+    """Fuzz a target (repo or binary): ASAN/UBSAN build, seed generation,
+    mutation fuzzing (built-in engine or libFuzzer/AFL++ if installed),
+    crash triage + minimization.
+
+    Args:
+        repo: Git URL or local path of target (optional if binary given).
+        binary: Path to prebuilt binary to fuzz (optional if repo given).
+        budget: Fuzz time budget in seconds (default 60).
+        base_url/model/api_key: Optional LLM for seed + strategy design.
+
+    Returns:
+        Report with findings (engine-compatible format).
+    """
+    args = ["--budget", str(budget)]
+    if repo: args += ["--repo", repo]
+    if binary: args += ["--binary", binary]
+    if base_url: args += ["--base-url", base_url]
+    if model: args += ["--model", model]
+    if api_key: args += ["--api-key", api_key]
+    return _run_module("fuzz_orchestrator.py", args, timeout=budget + 300)
+
+@mcp.tool
+def crash_analyze(
+    report: str,
+    crash_input: str = "",
+    repo: str = "",
+    base_url: str = "",
+    model: str = "",
+    api_key: str = "",
+) -> dict[str, Any]:
+    """Analyze a sanitizer crash report: bug class, attacker control,
+    realistic exploit primitive, mitigations, PoC direction.
+
+    Args:
+        report: Path to crash report text (.stderr from fuzz run).
+        crash_input: Path to crashing input file (optional).
+        repo: Target source repo for context (optional).
+        base_url/model/api_key: Optional LLM for exploitation hypothesis.
+
+    Returns:
+        Finding (engine-compatible format).
+    """
+    args = ["--report", report]
+    if crash_input: args += ["--input", crash_input]
+    if repo: args += ["--repo", repo]
+    if base_url: args += ["--base-url", base_url]
+    if model: args += ["--model", model]
+    if api_key: args += ["--api-key", api_key]
+    return _run_module("crash_exploit.py", args)
+
+@mcp.tool
+def research_hunt(
+    repo: str,
+    rounds: int = 3,
+    sandbox: str = "local",
+    base_url: str = "",
+    model: str = "",
+    api_key: str = "",
+) -> dict[str, Any]:
+    """Big Sleep-style research loop: hypothesize -> write PoC -> execute
+    in sandbox -> iterate with results. Autonomous NEW-bug hunting.
+
+    Args:
+        repo: Git URL or local path of target.
+        rounds: Max hypothesis rounds (default 3).
+        sandbox: 'local' (subprocess w/ limits) or 'docker'.
+        base_url/model/api_key: LLM for hypothesis generation.
+
+    Returns:
+        Hunt log with findings + confirmed behaviors.
+    """
+    args = ["--repo", repo, "--rounds", str(rounds), "--sandbox", sandbox]
+    if base_url: args += ["--base-url", base_url]
+    if model: args += ["--model", model]
+    if api_key: args += ["--api-key", api_key]
+    return _run_module("research_agent.py", args, timeout=600)
+
+@mcp.tool
+def draft_disclosure(
+    finding: str,
+    vendor: str = "",
+    affected: str = "",
+    cwe: str = "",
+    cvss: str = "",
+) -> dict[str, Any]:
+    """Draft a responsible-disclosure advisory (GHSA-style) from a finding.
+
+    Args:
+        finding: Path to finding JSON (engine-compatible format).
+        vendor: Vendor name (optional).
+        affected: Affected product/version (optional).
+        cwe: CWE identifier (optional).
+        cvss: CVSS v3.1 vector (optional, e.g. AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H).
+
+    Returns:
+        Advisory markdown.
+    """
+    args = ["advisory", "--finding", finding]
+    if vendor: args += ["--vendor", vendor]
+    if affected: args += ["--affected", affected]
+    if cwe: args += ["--cwe", cwe]
+    if cvss: args += ["--cvss", cvss]
+    return _run_module_text("disclosure.py", args)
+
 # ─── Demo Tool ──────────────────────────────────────────────────────────
 
 @mcp.tool
