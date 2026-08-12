@@ -27,16 +27,24 @@ def _git(repo, *args, timeout=120):
     except Exception:
         return "", -1
 
-def _llm(base_url, model, api_key, system, user, max_tokens=1400):
+def _llm(base_url, model, api_key, system, user, max_tokens=1900):
     if not base_url or not model: return None
     try:
         from openai import OpenAI
         c = OpenAI(base_url=base_url.rstrip("/"), api_key=api_key or "not-needed")
-        r = c.chat.completions.create(model=model,
-            messages=[{"role": "system", "content": system},
-                      {"role": "user", "content": user}],
-            temperature=0.4, max_tokens=max_tokens)
-        return (r.choices[0].message.content or "").strip()
+                # reasoning models (Qwen3 etc.) burn the token budget thinking unless disabled;
+        # fall back to plain call if the server rejects chat_template_kwargs
+        _kwargs = dict(model=model,
+                       messages=[{"role": "system", "content": system},
+                                 {"role": "user", "content": user}],
+                       temperature=0.2, max_tokens=max_tokens)
+        try:
+            r = c.chat.completions.create(**_kwargs, extra_body={"chat_template_kwargs": {"enable_thinking": False}})
+        except Exception:
+            r = c.chat.completions.create(**_kwargs)
+        _m = r.choices[0].message
+        txt = (_m.content or "").strip() or (getattr(_m, "reasoning_content", "") or "").strip()
+        return txt
     except Exception as e:
         return f"__LLM_ERROR__ {str(e)[:200]}"
 
@@ -48,6 +56,31 @@ def _json_loose(txt):
     except Exception:
         try: return json.loads(re.sub(r",\s*([}\]])", r"\1", raw))
         except Exception: return None
+
+def _json_list(txt):
+    """Robust parse -> list of dicts. Handles arrays, single objects, or a
+    stream of concatenated JSON objects (what reasoning models often emit)."""
+    txt = (txt or "").strip()
+    txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", txt, flags=re.M).strip()
+    try:
+        d = json.loads(txt)
+        return d if isinstance(d, list) else [d]
+    except Exception:
+        pass
+    out, dec, i = [], json.JSONDecoder(), 0
+    while i < len(txt):
+        while i < len(txt) and txt[i] not in "{[":
+            i += 1
+        if i >= len(txt): break
+        try:
+            obj, end = dec.raw_decode(txt, i)
+            out.append(obj); i = end
+        except Exception:
+            i += 1
+    flat = []
+    for o in out:
+        flat.extend(o) if isinstance(o, list) else flat.append(o)
+    return flat
 
 # ─── Repo surface ──────────────────────────────────────────────────────
 LANG_EXT = {".py": "python", ".js": "javascript", ".ts": "typescript", ".go": "go",
@@ -99,8 +132,8 @@ def hypothesize(surface, base_url="", model="", api_key="", prior=None, n=5):
         f"Target surface: {json.dumps(surface, indent=1)[:3000]}{prior_blob}")
     if not out or out.startswith("__LLM_ERROR__"):
         return []
-    data = _json_loose(out)
-    if not isinstance(data, list):
+    data = _json_list(out)
+    if not data:
         return []
     hyps = []
     for d in data[:n]:

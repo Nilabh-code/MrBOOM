@@ -198,16 +198,24 @@ def score(c):
     return round(min(s, 10), 1)
 
 # ─── LLM triage ────────────────────────────────────────────────────────
-def _llm(base_url, model, api_key, system, user, max_tokens=800):
+def _llm(base_url, model, api_key, system, user, max_tokens=1900):
     if not base_url or not model: return None
     try:
         from openai import OpenAI
         c = OpenAI(base_url=base_url.rstrip("/"), api_key=api_key or "not-needed")
-        r = c.chat.completions.create(
-            model=model, messages=[{"role": "system", "content": system},
-                                   {"role": "user", "content": user}],
-            temperature=0.2, max_tokens=max_tokens)
-        return (r.choices[0].message.content or "").strip()
+                # reasoning models (Qwen3 etc.) burn the token budget thinking unless disabled;
+        # fall back to plain call if the server rejects chat_template_kwargs
+        _kwargs = dict(model=model,
+                       messages=[{"role": "system", "content": system},
+                                 {"role": "user", "content": user}],
+                       temperature=0.2, max_tokens=max_tokens)
+        try:
+            r = c.chat.completions.create(**_kwargs, extra_body={"chat_template_kwargs": {"enable_thinking": False}})
+        except Exception:
+            r = c.chat.completions.create(**_kwargs)
+        _m = r.choices[0].message
+        txt = (_m.content or "").strip() or (getattr(_m, "reasoning_content", "") or "").strip()
+        return txt
     except Exception as e:
         return f"__LLM_ERROR__ {str(e)[:200]}"
 
@@ -220,7 +228,40 @@ def _json_loose(txt):
         try: return json.loads(re.sub(r",\s*([}\]])", r"\1", raw))
         except Exception: return None
 
-def triage(candidates, base_url="", model="", api_key="", max_batch=12):
+def _verdict_list(txt):
+    """Parse a response into a list of dicts. Handles: a JSON array, a single
+    JSON object, OR a stream of concatenated JSON objects (id0,id1,id2...) that
+    many models emit when told to return one entry per id."""
+    txt = (txt or "").strip()
+    txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", txt, flags=re.M).strip()
+    try:
+        d = json.loads(txt)
+        return d if isinstance(d, list) else [d]
+    except Exception:
+        pass
+    m = re.search(r"\[.*\]", txt, re.DOTALL)
+    if m:
+        try:
+            d = json.loads(m.group(0))
+            return d if isinstance(d, list) else [d]
+        except Exception:
+            pass
+    out, dec, i = [], json.JSONDecoder(), 0
+    while i < len(txt):
+        while i < len(txt) and txt[i] not in "{[":
+            i += 1
+        if i >= len(txt): break
+        try:
+            obj, end = dec.raw_decode(txt, i)
+            out.append(obj); i = end
+        except Exception:
+            i += 1
+    flat = []
+    for o in out:
+        flat.extend(o) if isinstance(o, list) else flat.append(o)
+    return flat
+
+def triage(candidates, base_url="", model="", api_key="", max_batch=4):
     """LLM judges candidate exploitability. Returns enriched candidates."""
     if not candidates: return []
     if not (base_url and model):
@@ -251,8 +292,10 @@ def triage(candidates, base_url="", model="", api_key="", max_batch=12):
                                 "input_chain": "", "note": f"LLM error: {resp[:120] if resp else 'no model'}"}
             out.extend(batch)
             continue
-        data = _json_loose(resp) or []
-        by_id = {d.get("id"): d for d in data if isinstance(d, dict)}
+        data = _verdict_list(resp)
+        if isinstance(data, dict):
+            data = [data]
+        by_id = {d.get("id"): d for d in (data or []) if isinstance(d, dict)}
         for j, c in enumerate(batch):
             v = by_id.get(j, {})
             c["verdict"] = {"vulnerable": v.get("vulnerable"), "class": v.get("class", "unknown"),
