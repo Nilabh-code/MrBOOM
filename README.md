@@ -142,8 +142,16 @@ python disclosure.py advisory --finding finding.json --vendor "Acme" --cvss "AV:
 python disclosure.py timeline new --finding-id F1 --vendor Acme
 ```
 
-**MCP tools:** `patchgap_scan`, `source_scan`, `fuzz_orchestrate`, `crash_analyze`, `research_hunt`, `draft_disclosure`.
-**Planner tools:** `patchgap`, `source_scan`, `fuzz`, `crash_exploit`, `research_agent`, `disclosure` — with deterministic keyword routing for 0-day/fuzz/disclosure problems.
+### `route_breaker.py` — Param-Type-Aware Route Testing
+Fixes the custom-route blind spot: discovers routes + query params from the app, infers param type from the name (host/file/url/q/id), and fires type-appropriate payloads (cmd-inj, traversal, SSRF, SQLi, XSS, SSTI) with response-based detection — plus no-auth admin path checks. Verified against the AcmeCorp Pi lab: caught the critical RCE + SSRF + traversal + authz that the generic battery missed.
+
+```bash
+python route_breaker.py --target http://192.168.1.46
+python route_breaker.py --target http://localhost:3000 --routes "/tools/diagnostics?host=x"
+```
+
+**MCP tools:** `patchgap_scan`, `source_scan`, `fuzz_orchestrate`, `crash_analyze`, `research_hunt`, `draft_disclosure`, `route_break`.
+**Planner tools:** `patchgap`, `source_scan`, `fuzz`, `crash_exploit`, `research_agent`, `disclosure`, `route_breaker` — with deterministic keyword routing for 0-day/fuzz/disclosure/route problems.
 
 ## Dashboard
 

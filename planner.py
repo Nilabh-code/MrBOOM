@@ -23,6 +23,7 @@ TOOL_CATALOG = [
     {"name":"crash_exploit","desc":"CRASH->EXPLOIT PIPELINE — turns sanitizer crash reports into exploitation analysis: bug class, attacker control, realistic primitive, mitigations, PoC direction.","use_when":"a fuzz/sanitizer crash exists (or a crash report file) and you want exploitability assessment"},
     {"name":"research_agent","desc":"BIG-SLEEP-STYLE RESEARCH AGENT — hypothesis-driven loop: read target source, propose vuln hypotheses, write PoCs, execute in sandbox, iterate on results.","use_when":"you want autonomous NEW-bug hunting on a source repo beyond known CVEs"},
     {"name":"disclosure","desc":"RESPONSIBLE DISCLOSURE — GHSA-style advisory drafts, CVE request bodies, CVSS v3.1 scoring, disclosure timeline tracking.","use_when":"a vulnerability was confirmed and you need professional, coordinated disclosure documents"},
+    {"name":"route_breaker","desc":"ROUTE-BREAKER — param-type-aware testing of discovered custom routes (host->cmd-inj, file->traversal, url->SSRF, q->SQLi/XSS/SSTI) + no-auth admin path checks. Catches what generic batteries miss on custom apps.","use_when":"a live web app with custom routes/params is in scope and you want deep route-level validation"},
 ]
 VALID = {t["name"] for t in TOOL_CATALOG}
 
@@ -52,6 +53,8 @@ def deterministic_plan(problem):
         tools = ["patchgap", "source_scan", "research_agent", "breach_assessment"]
     elif any(k in p for k in ("fuzz", "crash", "sanitizer", "asan", "memory safety")):
         tools = ["fuzz", "crash_exploit", "source_scan"]
+    elif any(k in p for k in ("route", "param", "custom app", "web app route")):
+        tools = ["route_breaker", "source_scan"]
     elif any(k in p for k in ("disclose", "advisory", "cve request", "cvss", "timeline")):
         tools = ["disclosure", "crash_exploit"]
     elif any(k in p for k in ("source", "repo", "code scan", "sast", "white-box", "code review", "audit")):

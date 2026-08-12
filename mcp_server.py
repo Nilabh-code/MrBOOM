@@ -586,6 +586,27 @@ def draft_disclosure(
     if cvss: args += ["--cvss", cvss]
     return _run_module_text("disclosure.py", args)
 
+@mcp.tool
+def route_break(
+    target: str,
+    routes: list[str] = [],
+) -> dict[str, Any]:
+    """Param-type-aware testing of discovered custom routes on a live app.
+    host->cmd-injection, file->path traversal, url->SSRF, q->SQLi/XSS/SSTI,
+    plus no-auth admin path checks.
+
+    Args:
+        target: Base URL of the authorized target (e.g. http://192.168.1.46).
+        routes: Extra routes with params (optional), e.g. /tools/diagnostics?host=x.
+
+    Returns:
+        Findings list (engine-compatible format).
+    """
+    args = ["--target", target]
+    if routes:
+        args += ["--routes"] + list(routes)
+    return _run_module("route_breaker.py", args)
+
 # ─── Demo Tool ──────────────────────────────────────────────────────────
 
 @mcp.tool
