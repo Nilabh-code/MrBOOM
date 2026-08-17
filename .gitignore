@@ -1,4 +1,5 @@
 .venv/
+.mrboom_venv/
 __pycache__/
 *.pyc
 .mypy_cache/

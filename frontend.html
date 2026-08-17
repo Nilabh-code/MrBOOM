@@ -3,117 +3,127 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>DrDOOM — breach platform</title>
+<title>MrBOOM — breach cult</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Creepster&family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nosifer&family=Creepster&family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="/marked.min.js"></script>
 <style>
-:root{--font-dread:'Creepster',cursive;--font-body:'Hanken Grotesk',system-ui,sans-serif;--font-mono:'JetBrains Mono',monospace;--fs-display:clamp(1.4rem,3vw,2.2rem);--radius-soft:10px;--radius-pill:999px}
+:root{--font-dread:'Creepster',cursive;--font-horror:'Nosifer',cursive;--font-body:'Hanken Grotesk',system-ui,sans-serif;--font-mono:'JetBrains Mono',monospace;--fs-display:clamp(1.5rem,3vw,2.3rem);--radius-soft:8px;--radius-pill:999px}
 *{box-sizing:border-box}html,body{margin:0;padding:0;background:var(--bg);height:100%;font-family:var(--font-body)}
-::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:rgba(180,0,0,.35);border-radius:99px}::-webkit-scrollbar-thumb:hover{background:rgba(200,0,0,.55)}::-webkit-scrollbar-track{background:transparent}
-::selection{background:rgba(200,0,0,.3);color:var(--fg)}
+::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-thumb{background:rgba(255,26,26,.28);border-radius:99px;box-shadow:inset 0 0 6px rgba(255,0,0,.4)}::-webkit-scrollbar-thumb:hover{background:rgba(255,26,26,.5)}::-webkit-scrollbar-track{background:transparent}
+::selection{background:rgba(255,26,26,.35);color:#fff}
 @keyframes spin{to{transform:rotate(360deg)}}
-@keyframes fadeUp{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
-@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.8)}}
-@keyframes barpulse{0%,100%{opacity:.5}50%{opacity:1}}
-@keyframes glitch{0%,90%,100%{transform:translate(0)}92%{transform:translate(-2px,1px)}94%{transform:translate(2px,-1px)}96%{transform:translate(-1px,-1px)}98%{transform:translate(1px,1px)}}
-@keyframes flicker{0%,100%{opacity:1}3%{opacity:.3}6%{opacity:1}7%{opacity:.5}9%{opacity:1}80%{opacity:1}82%{opacity:.6}84%{opacity:1}}
-@keyframes pulseRed{0%,100%{opacity:.04;transform:scale(1)}50%{opacity:.09;transform:scale(1.05)}}
-@keyframes scanline{0%{top:-100%}100%{top:100%}}
-@keyframes skullGlow{0%,100%{filter:drop-shadow(0 0 8px rgba(180,0,0,.3))}50%{filter:drop-shadow(0 0 18px rgba(200,0,0,.6))}}
-@keyframes warningPulse{0%,100%{opacity:.7}50%{opacity:1}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.75)}}
+@keyframes glitch{0%,86%,100%{transform:translate(0) skew(0)}88%{transform:translate(-2px,1px) skew(-1deg)}90%{transform:translate(2px,-2px) skew(1.5deg)}92%{transform:translate(-1px,-1px)}94%{transform:translate(1px,2px);filter:hue-rotate(30deg)}96%{transform:translate(-2px,0) skew(2deg)}}
+@keyframes flicker{0%,100%{opacity:1}3%{opacity:.35}5%{opacity:1}8%{opacity:.55}10%{opacity:1}42%{opacity:1}43%{opacity:.2}44%{opacity:1}80%{opacity:1}82%{opacity:.65}83%{opacity:1}}
+@keyframes bloodPulse{0%,100%{opacity:.05}50%{opacity:.13}}
+@keyframes scanline{0%{top:-8%}100%{top:108%}}
+@keyframes skullGlow{0%,100%{filter:drop-shadow(0 0 6px rgba(255,26,26,.35))}50%{filter:drop-shadow(0 0 20px rgba(255,26,26,.8))}}
+@keyframes heartbeat{0%,100%{transform:scale(1)}14%{transform:scale(1.06)}28%{transform:scale(1)}42%{transform:scale(1.04)}70%{transform:scale(1)}}
+@keyframes drip{0%{height:0;opacity:0}30%{opacity:1}100%{height:26px;opacity:.85}}
+@keyframes warnTape{0%{background-position:0 0}100%{background-position:56px 0}}
+@keyframes crtNoise{0%{transform:translate(0,0)}25%{transform:translate(-1px,1px)}50%{transform:translate(1px,-1px)}75%{transform:translate(-1px,-1px)}100%{transform:translate(0,0)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* CRT overlays */
+.crt-overlay{pointer-events:none;position:fixed;inset:0;z-index:9999;overflow:hidden}
+.crt-overlay::before{content:'';position:absolute;left:0;width:100%;height:140px;background:linear-gradient(180deg,transparent,rgba(255,26,26,.05) 45%,rgba(255,26,26,.08) 50%,rgba(255,26,26,.05) 55%,transparent);animation:scanline 7s linear infinite}
+.crt-overlay::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);mix-blend-mode:multiply}
+.vignette{pointer-events:none;position:fixed;inset:0;z-index:9998;background:radial-gradient(ellipse at center,transparent 52%,rgba(0,0,0,.55) 100%)}
+.blood-glow-overlay{pointer-events:none;position:fixed;inset:0;z-index:9997;background:radial-gradient(ellipse 70% 45% at 50% -5%,var(--ac),transparent 70%);animation:bloodPulse 5s ease-in-out infinite;mix-blend-mode:screen}
 .hover-bd:hover{border-color:var(--bds)!important}
 .navlink{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-soft);color:var(--fg2);font-size:13px;font-weight:500;cursor:pointer;border:1px solid transparent;transition:all .15s ease}
-.navlink:hover{background:var(--sf2);color:var(--fg);border-color:rgba(180,0,0,.15)}
-.navlink.active{background:var(--acs);color:var(--ac);font-weight:600;border-color:rgba(180,0,0,.3);box-shadow:inset 3px 0 0 var(--ac),0 0 10px rgba(180,0,0,.06)}
-.lbl{font:700 9.5px/1 var(--font-body);letter-spacing:.12em;text-transform:uppercase;color:var(--fg3)}
+.navlink:hover{background:var(--sf2);color:var(--fg);border-color:rgba(255,26,26,.18)}
+.navlink.active{background:var(--acs);color:var(--ac);font-weight:700;border-color:rgba(255,26,26,.35);box-shadow:inset 3px 0 0 var(--ac),0 0 14px rgba(255,26,26,.08);text-shadow:0 0 8px var(--acs)}
+.lbl{font:800 9.5px/1 var(--font-body);letter-spacing:.2em;text-transform:uppercase;color:var(--fg3)}
 .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
 button:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 .big-input{width:100%;padding:11px 14px;border-radius:var(--radius-soft);border:1.5px solid var(--bd);background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:13px;transition:all .15s ease}
-.big-input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 2px rgba(180,0,0,.08)}
+.big-input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px var(--acs),0 0 18px var(--acs)}
 .big-label{display:block;font-size:12px;font-weight:600;color:var(--fg2);margin-bottom:6px}
 .big-select{width:100%;padding:11px 14px;border-radius:var(--radius-soft);border:1.5px solid var(--bd);background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:13px;cursor:pointer}
-@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.dread-title{font-family:var(--font-horror);color:var(--fg);letter-spacing:.05em;line-height:1.15}
+.glitchable{animation:glitch 7s linear infinite}
+.warn-tape{height:8px;background:repeating-linear-gradient(135deg,var(--wn) 0 14px,#000 14px 28px);animation:warnTape 2.2s linear infinite;opacity:.75}
 .md table{border-collapse:collapse;width:100%;margin:6px 0;font-size:12px;background:var(--sf);border-radius:var(--radius-soft);overflow:hidden}
 .md td,.md th{border:1px solid var(--bd);padding:6px 10px;text-align:left}
 .md th{background:var(--sf2);font-weight:600;color:var(--fg2)}
 .md tr:nth-child(even){background:var(--sf2)}
-.md code{font-family:var(--font-mono);font-size:11px;background:var(--sf2);padding:2px 5px;border-radius:4px;border:1px solid var(--bd)}
-.md pre{background:var(--sf2);border:1px solid var(--bd);border-radius:var(--radius-soft);padding:12px 15px;overflow-x:auto;font-size:11px;line-height:1.5}
+.md code{font-family:var(--font-mono);font-size:11px;background:var(--sf2);padding:2px 5px;border-radius:4px;border:1px solid var(--bd);color:var(--c2)}
+.md pre{background:#0a0404;border:1px solid var(--bds);border-radius:var(--radius-soft);padding:12px 15px;overflow-x:auto;font-size:11px;line-height:1.5;box-shadow:inset 0 0 20px rgba(255,0,0,.06)}
 .md pre code{background:none;border:none;padding:0}
 .md ul,.md ol{padding-left:18px;margin:5px 0}
-.md strong{font-weight:700}
-.md h1,.md h2,.md h3,.md h4{margin:12px 0 6px;font-family:var(--font-body);font-weight:700}
-.md h1{font-size:18px}.md h2{font-size:16px}.md h3{font-size:14px}
+.md strong{font-weight:700;color:var(--ac);text-shadow:0 0 10px var(--acs)}
+.md h1,.md h2,.md h3,.md h4{margin:12px 0 6px;font-family:var(--font-dread);font-weight:400;letter-spacing:.04em}
+.md h1{font-size:20px}.md h2{font-size:17px}.md h3{font-size:15px}
+.hl-cve{color:var(--dg);font-weight:700;text-shadow:0 0 8px var(--dgs)}.hl-ip{color:var(--wn);font-weight:600}.hl-url{color:var(--c2)}.hl-secret{color:var(--wn);font-weight:700;animation:flicker 3s linear infinite}.hl-email{color:var(--fg2)}.hl-path{color:var(--fg2)}
 .feed-container{position:relative}
-.feed-container::before{content:'';position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;background:radial-gradient(ellipse 120px 180px at 20px 20px,rgba(140,0,0,.06) 0%,transparent 70%),radial-gradient(ellipse 100px 140px at 95% 30%,rgba(180,0,0,.05) 0%,transparent 65%),radial-gradient(ellipse 80px 120px at 60% 80%,rgba(200,0,0,.04) 0%,transparent 60%),radial-gradient(ellipse 90px 130px at 80% 60%,rgba(160,0,0,.05) 0%,transparent 65%),radial-gradient(ellipse 70px 100px at 30% 50%,rgba(150,0,0,.04) 0%,transparent 60%);animation:pulseRed 8s ease-in-out infinite}
+.feed-container::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.45;background-image:linear-gradient(rgba(255,26,26,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,26,26,.045) 1px,transparent 1px);background-size:38px 38px;mask-image:radial-gradient(ellipse 75% 65% at 50% 15%,#000 0%,transparent 80%)}
 .feed-item{cursor:pointer;transition:all .1s ease}
-.feed-item:hover{filter:brightness(1.1)}
-.feed-expand{display:none;padding:10px 14px;background:var(--sf2);border-top:1px solid var(--bd);font-size:12px;line-height:1.6;max-height:360px;overflow-y:auto;border-radius:0 0 8px 8px;white-space:pre-wrap;word-break:break-word}
+.feed-item:hover{filter:brightness(1.15)}
+.feed-expand{display:none;padding:10px 14px;background:#0a0404;border-top:1px solid var(--bds);font-size:12px;line-height:1.6;max-height:360px;overflow-y:auto;border-radius:0 0 8px 8px;white-space:pre-wrap;word-break:break-word;box-shadow:inset 0 0 24px rgba(255,0,0,.05)}
 .feed-expand.open{display:block}
-.hist-widget{border:1px solid var(--bd);border-radius:12px;background:var(--sf);padding:14px 16px;transition:all .15s ease;cursor:pointer;display:flex;flex-direction:column;gap:6px}
-.hist-widget:hover{border-color:var(--ac);box-shadow:0 2px 14px rgba(180,0,0,.08);transform:translateY(-1px)}
+.hist-widget{border:1px solid var(--bd);border-radius:10px;background:var(--sf);padding:14px 16px;transition:all .15s ease;cursor:pointer;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden}
+.hist-widget::before{content:'';position:absolute;top:0;left:0;width:100%;height:2px;background:linear-gradient(90deg,transparent,var(--ac),transparent);opacity:.4}
+.hist-widget:hover{border-color:var(--ac);box-shadow:0 4px 22px rgba(255,26,26,.12),inset 0 0 30px rgba(255,26,26,.03);transform:translateY(-1px)}
 .hist-widget .hw-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .hist-widget .hw-name{font-weight:700;font-size:15px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hist-widget .hw-code{font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--ac);background:var(--acs);padding:3px 8px;border-radius:6px;letter-spacing:.12em;flex:none}
+.hist-widget .hw-code{font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--ac);background:var(--acs);padding:3px 8px;border-radius:6px;letter-spacing:.12em;flex:none;text-shadow:0 0 8px var(--acs)}
 .hist-widget .hw-meta{font-size:11px;color:var(--fg3);display:flex;gap:12px;flex-wrap:wrap}
 .hist-widget .hw-actions{display:flex;gap:6px;margin-top:4px}
-.hist-btn{border-radius:8px;padding:7px 12px;font-size:11px;font-weight:600;border:1.5px solid var(--bd);background:var(--sf2);color:var(--fg2);cursor:pointer;transition:all .1s ease;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.hist-btn{border-radius:7px;padding:7px 12px;font-size:11px;font-weight:600;border:1.5px solid var(--bd);background:var(--sf2);color:var(--fg2);cursor:pointer;transition:all .1s ease;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
 .hist-btn:hover{border-color:var(--ac);color:var(--ac)}
-.hist-btn.primary{background:var(--ac);border-color:var(--ac);color:#fff}
-.hist-btn.primary:hover{box-shadow:0 2px 10px rgba(180,0,0,.2)}
+.hist-btn.primary{background:linear-gradient(135deg,var(--ac),var(--c4));border-color:var(--ac);color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.hist-btn.primary:hover{box-shadow:0 2px 14px rgba(255,26,26,.3)}
 .hist-btn.danger{border-color:var(--dg);color:var(--dg)}
 .hist-btn.danger:hover{background:var(--dgs)}
-.status-ok{color:var(--ok)}.status-err{color:var(--dg)}.status-run{color:var(--c2)}
-.session-badge{font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--ac);background:var(--acs);padding:3px 7px;border-radius:5px;letter-spacing:.1em}
-.report-expand{display:none;margin-top:8px;border:1px solid var(--ac);border-radius:10px;background:var(--sf2);overflow:hidden}
+.status-ok{color:var(--ok);text-shadow:0 0 8px var(--oks)}.status-err{color:var(--dg);text-shadow:0 0 8px var(--dgs)}.status-run{color:var(--c2)}
+.session-badge{font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--ac);background:var(--acs);padding:3px 7px;border-radius:5px;letter-spacing:.1em;text-shadow:0 0 8px var(--acs)}
+.report-expand{display:none;margin-top:8px;border:1px solid var(--ac);border-radius:10px;background:var(--sf2);overflow:hidden;box-shadow:0 0 20px var(--acs)}
 .report-expand.open{display:block}
 .report-expand .re-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--sf);border-bottom:1px solid var(--bd)}
 .report-expand .re-body{padding:12px 14px;font-size:13px;line-height:1.7;max-height:420px;overflow-y:auto}
-.find-card{border:1px solid var(--bd);border-radius:10px;background:var(--sf);overflow:hidden;transition:all .1s ease}
-.find-card:hover{border-color:var(--bds);box-shadow:0 1px 8px rgba(0,0,0,.08)}
+.find-card{border:1px solid var(--bd);border-radius:10px;background:var(--sf);overflow:hidden;transition:all .1s ease;position:relative}
+.find-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--ac),var(--c4));opacity:.6}
+.find-card:hover{border-color:var(--bds);box-shadow:0 2px 16px rgba(0,0,0,.4),0 0 12px var(--acs)}
 .find-card .fc-head{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;-webkit-user-select:none;user-select:none}
 .find-card .fc-body{display:none;padding:10px 14px 14px;border-top:1px solid var(--bd);font-size:12px;line-height:1.6;color:var(--fg2)}
 .find-card .fc-body.open{display:block}
-.find-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;text-transform:uppercase;letter-spacing:.05em}
-.find-badge.critical{background:rgba(180,0,0,.15);color:var(--dg)}
-.find-badge.high{background:rgba(230,81,0,.15);color:var(--wn)}
-.find-badge.medium{background:rgba(255,193,7,.12);color:#f9a825}
-.find-badge.low{background:rgba(46,125,50,.12);color:var(--ok)}
-.find-badge.info{background:rgba(0,0,0,.06);color:var(--fg3)}
-.config-section{border:1px solid var(--bd);border-radius:var(--radius-soft);padding:16px;background:var(--sf2);margin-bottom:12px}
-.config-section h3{font-size:13px;font-weight:700;color:var(--ac);margin:0 0 12px;font-family:var(--font-body)}
+.find-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;padding:2px 7px;border-radius:5px;text-transform:uppercase;letter-spacing:.08em}
+.find-badge.critical{background:var(--dgs);color:var(--dg);text-shadow:0 0 8px var(--dg);animation:heartbeat 2.4s ease-in-out infinite;box-shadow:0 0 12px var(--dgs),inset 0 0 0 1px rgba(255,34,34,.5)}
+.find-badge.high{background:var(--wns);color:var(--wn);text-shadow:0 0 6px var(--wns)}
+.find-badge.medium{background:color-mix(in srgb,var(--wn) 14%,transparent);color:var(--wn)}
+.find-badge.low{background:var(--oks);color:var(--ok)}
+.find-badge.info{background:var(--sf2);color:var(--fg3)}
+.config-section{border:1px solid var(--bd);border-radius:var(--radius-soft);padding:16px;background:var(--sf2);margin-bottom:12px;box-shadow:inset 0 0 26px rgba(0,0,0,.25)}
+.config-section h3{font-size:14px;font-weight:400;color:var(--ac);margin:0 0 12px;font-family:var(--font-dread);letter-spacing:.06em;text-shadow:0 0 10px var(--acs)}
+.skull-mark{animation:skullGlow 3s ease-in-out infinite}
+.drip-bar{position:relative}
+.drip-bar i{position:absolute;top:100%;width:2px;background:linear-gradient(180deg,var(--ac),transparent);animation:drip 4s ease-in infinite;border-radius:0 0 3px 3px}
 </style>
 </head>
 <body>
-<div class="scanline-overlay" style="pointer-events:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;overflow:hidden"></div>
-<div class="vignette" style="pointer-events:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:9998;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.5) 100%)"></div>
+<div class="crt-overlay"></div>
+<div class="vignette"></div>
+<div class="blood-glow-overlay"></div>
 
 <div id="root" style="display:flex;height:100vh;width:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-family:var(--font-body);-webkit-font-smoothing:antialiased;font-size:13px">
 
   <!-- SIDEBAR -->
-  <aside style="width:230px;flex:none;display:flex;flex-direction:column;background:var(--sb);border-right:1px solid var(--bd);position:relative;overflow:hidden">
-    <svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;opacity:.4" viewBox="0 0 230 800" preserveAspectRatio="xMidYMid slice">
-      <defs>
-        <filter id="gooSide"><feGaussianBlur in="SourceGraphic" stdDeviation="10" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 16 -6" result="g"/><feComposite in="SourceGraphic" in2="g" operator="atop"/></filter>
-        <radialGradient id="blobGrad" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="var(--ac)" stop-opacity=".12"/><stop offset="100%" stop-color="var(--c4)" stop-opacity=".02"/></radialGradient>
-      </defs>
-      <g filter="url(#gooSide)">
-        <circle cx="30" cy="100" r="40" fill="url(#blobGrad)" style="animation:pulseRed 6s ease-in-out infinite"/>
-        <circle cx="200" cy="300" r="50" fill="url(#blobGrad)" style="animation:pulseRed 8s ease-in-out 1s infinite"/>
-        <circle cx="60" cy="550" r="35" fill="url(#blobGrad)" style="animation:pulseRed 7s ease-in-out 2s infinite"/>
-        <circle cx="180" cy="700" r="45" fill="url(#blobGrad)" style="animation:pulseRed 5s ease-in-out .5s infinite"/>
-      </g>
-    </svg>
-    <div style="padding:12px 12px 8px;position:relative;z-index:1">
-      <div style="display:flex;align-items:center;gap:8px;padding:0 2px 10px">
-        <div style="width:28px;height:28px;border-radius:6px;background:var(--sf2);border:1px solid var(--bd);color:var(--ac);display:flex;align-items:center;justify-content:center;flex:none;animation:skullGlow 3s ease-in-out infinite;font-size:16px">&#9760;</div>
-        <span style="font-family:var(--font-dread);font-size:26px;color:var(--ac);letter-spacing:.04em;line-height:1;text-shadow:0 0 10px rgba(180,0,0,.3),0 0 20px rgba(180,0,0,.1);animation:flicker 4s linear infinite">DrDOOM</span>
-        <span class="mono" style="margin-left:auto;font-weight:600;font-size:9px;color:var(--c3);border:1px solid var(--c3);padding:2px 5px;border-radius:4px">v2.0</span>
+  <aside style="width:234px;flex:none;display:flex;flex-direction:column;background:var(--sb);border-right:1px solid var(--bds);position:relative;overflow:hidden">
+    <div style="position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 120% 40% at 50% 0%,rgba(255,26,26,.08),transparent 70%),radial-gradient(ellipse 60% 30% at 15% 45%,rgba(160,0,0,.05),transparent 70%),radial-gradient(ellipse 70% 25% at 85% 80%,rgba(255,26,26,.04),transparent 65%)"></div>
+    <div style="padding:14px 12px 8px;position:relative;z-index:1">
+      <div style="display:flex;align-items:center;gap:9px;padding:0 2px 10px">
+        <div class="skull-mark" style="width:32px;height:32px;border-radius:8px;background:linear-gradient(160deg,#1a0505,#2a0a0a);border:1px solid var(--bds);color:var(--ac);display:flex;align-items:center;justify-content:center;flex:none;font-size:17px">&#9760;</div>
+        <span style="font-family:var(--font-horror);font-size:19px;color:var(--ac);letter-spacing:.03em;line-height:1;text-shadow:0 0 12px rgba(255,26,26,.45),0 0 30px rgba(255,26,26,.15);animation:flicker 5s linear infinite">MrBOOM</span>
+        <span class="mono" style="margin-left:auto;font-weight:700;font-size:9px;color:var(--dg);border:1px solid var(--dg);background:var(--dgs);padding:2px 5px;border-radius:4px;text-shadow:0 0 6px var(--dg)">666</span>
       </div>
-      <div id="repoBox" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1px solid var(--bd);background:var(--sf2)">
-        <span style="width:22px;height:22px;border-radius:5px;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;flex:none;font-size:11px">&#9762;</span>
+      <div class="warn-tape drip-bar" style="border-radius:2px;margin-bottom:10px">
+        <i style="left:22%;animation-delay:.6s"></i><i style="left:58%;animation-delay:2s"></i><i style="left:84%;animation-delay:3.4s"></i>
+      </div>
+      <div id="repoBox" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1px solid var(--bds);background:var(--sf2);box-shadow:inset 0 0 18px rgba(0,0,0,.35)">
+        <span style="width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,var(--ac),var(--c4));color:#fff;display:flex;align-items:center;justify-content:center;flex:none;font-size:11px">&#9762;</span>
         <span style="display:flex;flex-direction:column;min-width:0;line-height:1.25">
           <span id="repoName" style="font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">workspace</span>
           <span id="repoSub" style="font-size:10px;color:var(--fg3)">waiting</span>
@@ -121,103 +131,108 @@ button:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
       </div>
     </div>
     <nav style="flex:1;overflow-y:auto;padding:4px 10px 10px;display:flex;flex-direction:column;gap:2px;position:relative;z-index:1">
-      <div class="lbl" style="padding:8px 8px 4px">Workspace</div>
-      <a class="navlink active" id="navRunsBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2.5 7 5-14L17 12h4"/></svg><span>Runs</span><span id="navRuns" class="mono" style="margin-left:auto;font-size:10px;color:var(--ok);background:var(--oks);padding:2px 6px;border-radius:4px">0</span></a>
-      <a class="navlink" id="navHistoryBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>History</span><span id="navHistoryCount" class="mono" style="margin-left:auto;font-size:10px;color:var(--c2);background:var(--c2s);padding:2px 6px;border-radius:4px">0</span></a>
-      <a class="navlink" id="navConfigBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Config</span></a>
-      <a class="navlink" id="navFindBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Findings</span><span id="navFindCount" class="mono" style="margin-left:auto;font-size:10px;color:var(--dg);background:var(--dgs);padding:2px 6px;border-radius:4px;display:none">0</span></a>
+      <div class="lbl" style="padding:10px 8px 5px;color:var(--ac);text-shadow:0 0 8px var(--acs)">Rituals</div>
+      <a class="navlink active" id="navRunsBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2.5 7 5-14L17 12h4"/></svg><span>Live Hunt</span><span id="navRuns" class="mono" style="margin-left:auto;font-size:10px;color:var(--ok);background:var(--oks);padding:2px 6px;border-radius:4px">0</span></a>
+      <a class="navlink" id="navHistoryBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>Buried Scans</span><span id="navHistoryCount" class="mono" style="margin-left:auto;font-size:10px;color:var(--c2);background:var(--c2s);padding:2px 6px;border-radius:4px">0</span></a>
+      <a class="navlink" id="navFindBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 2 21h20L12 2z"/><path d="M12 9v5M12 17.5v.01"/></svg><span>Wounds</span><span id="navFindCount" class="mono" style="margin-left:auto;font-size:10px;color:var(--dg);background:var(--dgs);padding:2px 6px;border-radius:4px;display:none">0</span></a>
+      <div class="lbl" style="padding:14px 8px 5px">Altar</div>
+      <a class="navlink" id="navConfigBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Invoke</span></a>
     </nav>
-    <div style="padding:10px;border-top:1px solid var(--bd);position:relative;z-index:1">
+    <div style="padding:10px;border-top:1px solid var(--bds);position:relative;z-index:1">
       <div id="connBox" style="display:flex;align-items:center;gap:7px;padding:6px;font-size:11px;color:var(--fg3)">
-        <span id="connDot" style="width:6px;height:6px;border-radius:50%;background:var(--fg3);flex:none"></span>
+        <span id="connDot" style="width:6px;height:6px;border-radius:50%;background:var(--fg3);flex:none;box-shadow:0 0 8px currentColor"></span>
         <span id="connText">connecting&#8230;</span>
+        <span class="mono" style="margin-left:auto;font-size:9px;color:var(--dg);letter-spacing:.15em;animation:flicker 4s linear infinite">CURSED</span>
       </div>
     </div>
   </aside>
 
   <!-- MAIN -->
   <div style="flex:1;display:flex;flex-direction:column;min-width:0">
-    <header style="height:48px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 16px 0 20px;border-bottom:1px solid var(--bd);background:var(--sf);gap:12px">
+    <header style="height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 16px 0 20px;border-bottom:1px solid var(--bds);background:var(--sf);gap:12px;box-shadow:0 6px 24px rgba(0,0,0,.4)">
       <div style="display:flex;align-items:center;gap:10px;min-width:0">
         <span id="sessionBadge" class="session-badge" style="display:none"></span>
-        <span style="color:var(--fg3);font-size:12px;font-weight:500">Runs</span>
+        <span style="color:var(--fg3);font-size:12px;font-weight:500">Hunt</span>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--fg3)" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg>
-        <span id="runTitle" class="mono" style="font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:360px;color:var(--fg)">no run yet</span>
-        <div id="statusPill" style="display:flex;align-items:center;gap:6px;padding:3px 10px 3px 8px;border-radius:999px;font-size:11px;font-weight:600"></div>
+        <span id="runTitle" class="mono" style="font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:380px;color:var(--fg)">no hunt yet</span>
+        <div id="statusPill" style="display:flex;align-items:center;gap:6px;padding:3px 10px 3px 8px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.04em"></div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
-        <div class="mono" style="display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:7px;border:1px solid var(--bd);background:var(--sf);font-size:12px;color:var(--fg2)">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--fg3)" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v4.5l3 1.6"/></svg>
+        <div class="mono" style="display:flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:7px;border:1px solid var(--bds);background:var(--sf2);font-size:12px;color:var(--fg2)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--fg3)" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v4.5l3 1.6"/></svg>
           <span id="elapsed">00:00</span>
         </div>
-        <div id="pairChip" style="display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:7px;border:1px solid var(--bd);background:var(--sf);color:var(--fg2);font-size:12px;font-weight:500"></div>
-        <button id="themeBtn" title="Toggle theme" style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:7px;border:1px solid var(--bd);background:var(--sf);color:var(--fg2);cursor:pointer;font-size:13px">&#9790;</button>
+        <div id="pairChip" style="display:flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:7px;border:1px solid var(--bds);background:var(--sf2);color:var(--fg2);font-size:12px;font-weight:600"></div>
+        <button id="themeBtn" title="Toggle theme" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:7px;border:1px solid var(--bds);background:var(--sf2);color:var(--ac);cursor:pointer;font-size:13px">&#9790;</button>
       </div>
     </header>
 
     <div style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden">
       <!-- METRICS -->
-      <div style="padding:12px 22px 14px;border-bottom:1px solid var(--bd);background:var(--sf);display:flex;flex-direction:column;gap:10px">
-        <div style="display:flex;align-items:center;gap:28px;flex-wrap:wrap">
-          <div><span class="lbl">Odds</span><span id="mOdds" class="mono" style="font-weight:700;font-size:17px;display:block;margin-top:3px">&mdash;</span></div>
-          <div><span class="lbl">Health</span><span id="mHealth" class="mono" style="font-weight:700;font-size:17px;display:block;margin-top:3px">&mdash;</span></div>
-          <div><span class="lbl">Checks</span><span id="mTests" class="mono" style="font-weight:700;font-size:17px;display:block;margin-top:3px">&mdash;</span></div>
-          <div><span class="lbl">Esc</span><span id="mEsc" class="mono" style="font-weight:700;font-size:17px;display:block;margin-top:3px">0</span></div>
-          <div><span class="lbl">Events</span><span id="mEvents" class="mono" style="font-weight:700;font-size:17px;display:block;margin-top:3px">0</span></div>
+      <div style="padding:14px 22px 16px;border-bottom:1px solid var(--bds);background:var(--sf);display:flex;flex-direction:column;gap:12px;box-shadow:0 8px 26px rgba(0,0,0,.35)">
+        <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap">
+          <div style="padding-right:28px"><span class="lbl">Doom Odds</span><span id="mOdds" class="mono" style="font-weight:700;font-size:19px;display:block;margin-top:4px;color:var(--ac);text-shadow:0 0 10px var(--acs)">&mdash;</span></div>
+          <div style="padding:0 28px;border-left:1px solid var(--bds)"><span class="lbl">Vitals</span><span id="mHealth" class="mono" style="font-weight:700;font-size:19px;display:block;margin-top:4px">&mdash;</span></div>
+          <div style="padding:0 28px;border-left:1px solid var(--bds)"><span class="lbl">Checks</span><span id="mTests" class="mono" style="font-weight:700;font-size:19px;display:block;margin-top:4px">&mdash;</span></div>
+          <div style="padding:0 28px;border-left:1px solid var(--bds)"><span class="lbl">Possessions</span><span id="mEsc" class="mono" style="font-weight:700;font-size:19px;display:block;margin-top:4px;color:var(--dg)">0</span></div>
+          <div style="padding:0 28px;border-left:1px solid var(--bds)"><span class="lbl">Omens</span><span id="mEvents" class="mono" style="font-weight:700;font-size:19px;display:block;margin-top:4px">0</span></div>
+          <div style="padding:0 28px;border-left:1px solid var(--bds)"><span class="lbl">LLM Step</span><span id="mLlmStep" class="mono" style="font-weight:700;font-size:19px;display:block;margin-top:4px;color:var(--c2)">&mdash;</span><span id="mLlmAction" class="mono" style="font-size:10px;color:var(--fg3);display:block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span></div>
+          <div style="padding-left:28px;margin-left:auto;display:flex;align-items:center"><button id="stopScanBtn" style="display:none;align-items:center;gap:6px;height:34px;padding:0 16px;border-radius:7px;border:1px solid var(--bds);background:var(--dgs);color:var(--dg);cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.04em" onclick="stopScan()">&#9724; STOP</button></div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;flex-direction:column;gap:7px">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:11px;color:var(--fg2)">Phase <span id="pStep" class="mono" style="color:var(--fg)">0 / 5</span> <span style="color:var(--fg3)">&#183;</span> <span id="pPct" class="mono" style="font-weight:700;color:var(--ac)">0%</span></span>
+            <span style="font-size:11px;color:var(--fg2)">Summoning phase <span id="pStep" class="mono" style="color:var(--fg)">0 / 5</span> <span style="color:var(--dg)">&#183;</span> <span id="pPct" class="mono" style="font-weight:700;color:var(--ac);text-shadow:0 0 8px var(--acs)">0%</span></span>
           </div>
-          <div style="height:4px;border-radius:999px;background:var(--sf2);overflow:hidden">
-            <div id="pBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--ac),var(--c2));border-radius:999px;transition:width .5s cubic-bezier(.4,0,.2,1);box-shadow:0 0 6px rgba(180,0,0,.25)"></div>
+          <div style="height:5px;border-radius:999px;background:#150808;overflow:hidden;border:1px solid var(--bds)">
+            <div id="pBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--ac),var(--c3));border-radius:999px;transition:width .5s cubic-bezier(.4,0,.2,1);box-shadow:0 0 10px var(--ac)"></div>
           </div>
         </div>
       </div>
 
       <!-- RUNS VIEW -->
       <div id="runsView" style="flex:1;display:contents">
-        <div style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) 300px;overflow:hidden">
+        <div style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) 310px;overflow:hidden">
           <div id="feedScroll" class="feed-container" style="overflow-y:auto;overflow-x:hidden;padding:18px 22px 40px">
             <div id="feed" style="max-width:100%;display:flex;flex-direction:column;gap:12px;position:relative;z-index:1"></div>
-            <div id="empty" style="max-width:600px;color:var(--fg3);font-size:13px;line-height:1.6;position:relative;z-index:1">
-              <div style="margin-bottom:14px;text-align:center"><span style="font-size:48px;color:var(--ac);opacity:.6;animation:skullGlow 3s ease-in-out infinite">&#9760;</span></div>
-              <div style="font-family:var(--font-dread);font-size:var(--fs-display);color:var(--fg);margin-bottom:10px;letter-spacing:.06em;text-shadow:0 0 12px rgba(180,0,0,.2)">DrDOOM awaits.</div>
-              <div style="font-size:14px;color:var(--fg2);margin-bottom:20px;line-height:1.5">Configure your target below and unleash the hunt.</div>
-              <div style="background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:18px">
-                <div style="display:flex;flex-direction:column;gap:12px">
-                  <div><label class="big-label">Target Domain / IP</label><input type="text" id="scope" placeholder="example.com" class="big-input"></div>
-                  <div><label class="big-label">Prompt</label><textarea id="prompt" placeholder="Full recon and breach assessment..." class="big-input" style="resize:vertical;min-height:50px"></textarea></div>
-                  <button id="runBtn" style="font-family:var(--font-dread);font-size:20px;letter-spacing:.08em;padding:10px;border-radius:8px;border:2px solid var(--ac);background:linear-gradient(135deg,var(--ac),var(--c4));color:#fff;cursor:pointer;text-shadow:0 0 10px rgba(0,0,0,.3);animation:glitch 6s linear infinite">RUN</button>
+            <div id="empty" style="max-width:620px;color:var(--fg3);font-size:13px;line-height:1.6;position:relative;z-index:1">
+              <div style="margin:10px 0 16px;text-align:center"><span class="skull-mark" style="font-size:52px;color:var(--ac);display:inline-block">&#9760;</span></div>
+              <div class="dread-title glitchable" style="font-size:var(--fs-display);text-align:center;margin-bottom:10px;color:var(--fg);text-shadow:0 0 14px rgba(255,26,26,.3),3px 3px 0 #300">MrBOOM hungers.</div>
+              <div style="font-size:14px;color:var(--fg2);margin-bottom:20px;line-height:1.5;text-align:center">Feed it a target. It will not stop until something screams.</div>
+              <div style="background:var(--sf);border:1px solid var(--bds);border-radius:10px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.5),inset 0 0 40px rgba(255,26,26,.03)">
+                <div style="display:flex;flex-direction:column;gap:13px">
+                  <div><label class="big-label">Target Domain / IP — the victim</label><input type="text" id="scope" placeholder="example.com" class="big-input"></div>
+                  <div><label class="big-label">Invocation</label><textarea id="prompt" placeholder="Full recon and breach assessment..." class="big-input" style="resize:vertical;min-height:54px"></textarea></div>
+                  <div><label class="big-label">Mode</label><select id="mode" class="big-input" style="height:38px"><option value="trinity" selected>TRINITY (SCOUT → SKEPTIC → STRIKER cross-verified)</option><option value="pipeline">Pipeline (fixed stages)</option><option value="llm">LLM-driven (model picks every move)</option></select></div>
+                  <button id="runBtn" class="glitchable" style="font-family:var(--font-horror);font-size:19px;letter-spacing:.1em;padding:12px;border-radius:8px;border:2px solid var(--ac);background:linear-gradient(160deg,#3d0000,#1a0000);color:var(--ac);cursor:pointer;text-shadow:0 0 12px rgba(255,26,26,.6);box-shadow:0 0 24px var(--acs),inset 0 0 18px rgba(255,26,26,.08)">FEED IT</button>
                 </div>
               </div>
-              <div style="margin-top:12px;font-size:12px;color:var(--fg3)">Or try the demo:</div>
-              <button id="demoBtn" style="margin-top:8px;font-family:inherit;font-size:12px;font-weight:600;padding:8px 14px;border-radius:8px;border:1.5px solid var(--bd);background:var(--sf2);color:var(--fg2);cursor:pointer">Run mock demo</button>
+              <div style="margin-top:12px;font-size:12px;color:var(--fg3)">Or conjure a harmless rehearsal:</div>
+              <button id="demoBtn" style="margin-top:8px;font-family:inherit;font-size:12px;font-weight:600;padding:8px 14px;border-radius:8px;border:1.5px solid var(--bd);background:var(--sf2);color:var(--fg2);cursor:pointer">Run mock s&eacute;ance</button>
             </div>
           </div>
-          <aside style="border-left:1px solid var(--bd);overflow-y:auto;padding:16px 14px 30px;background:var(--sf);display:flex;flex-direction:column;gap:20px">
-            <div><div class="lbl">Relay</div><div id="relay" style="margin-top:10px;border:1px solid var(--bd);border-radius:8px;padding:10px;background:var(--sf2);font-size:12px;color:var(--fg3)">no data</div></div>
-            <div><div class="lbl">Phases</div><div id="tasks" style="display:flex;flex-direction:column;gap:2px;margin-top:10px"></div></div>
-            <div><div style="display:flex;justify-content:space-between;align-items:center"><span class="lbl">Health</span><span id="rHealth" class="mono" style="font-weight:700;font-size:13px;color:var(--fg)">&mdash;</span></div>
-              <div style="margin-top:10px;border:1px solid var(--bd);border-radius:8px;padding:10px;background:var(--sf2)">
+          <aside style="border-left:1px solid var(--bds);overflow-y:auto;padding:16px 14px 30px;background:var(--sf);display:flex;flex-direction:column;gap:20px;box-shadow:inset 14px 0 30px -22px #000">
+            <div><div class="lbl" style="color:var(--ac)">Possessed Models</div><div id="relay" style="margin-top:10px;border:1px solid var(--bds);border-radius:8px;padding:10px;background:var(--sf2);font-size:12px;color:var(--fg3)">no data</div></div>
+            <div><div class="lbl" style="color:var(--ac)">Summoning Phases</div><div id="tasks" style="display:flex;flex-direction:column;gap:2px;margin-top:10px"></div></div>
+            <div><div style="display:flex;justify-content:space-between;align-items:center"><span class="lbl" style="color:var(--ac)">Vitals</span><span id="rHealth" class="mono" style="font-weight:700;font-size:13px;color:var(--fg)">&mdash;</span></div>
+              <div style="margin-top:10px;border:1px solid var(--bds);border-radius:8px;padding:10px;background:var(--sf2)">
                 <svg viewBox="0 0 200 60" preserveAspectRatio="none" style="width:100%;height:56px;display:block">
-                  <line x1="0" y1="42" x2="200" y2="42" stroke="var(--dg)" stroke-width="1" vector-effect="non-scaling-stroke" stroke-dasharray="3 3" opacity=".4"/>
+                  <line x1="0" y1="42" x2="200" y2="42" stroke="var(--dg)" stroke-width="1" vector-effect="non-scaling-stroke" stroke-dasharray="3 3" opacity=".5"/>
                   <polygon id="hArea" points="" fill="var(--acs)" stroke="none"/>
-                  <polyline id="hPoly" points="" fill="none" stroke="var(--ac)" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
+                  <polyline id="hPoly" points="" fill="none" stroke="var(--ac)" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round" style="filter:drop-shadow(0 0 4px var(--ac))"/>
                   <line id="hMark" x1="-1" y1="0" x2="-1" y2="60" stroke="var(--dg)" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-dasharray="2 2"/>
                 </svg>
-                <div class="mono" style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--fg3)"><span>low <span id="hMin">&mdash;</span></span></div>
+                <div class="mono" style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--fg3)"><span>near-death <span id="hMin">&mdash;</span></span></div>
               </div>
             </div>
-            <div><div class="lbl">Policy</div><div id="config" style="margin-top:8px;display:flex;flex-direction:column;gap:2px;font-size:12px"></div></div>
-            <div id="chatPanel" style="display:none;border-top:1px solid var(--bd);padding-top:14px">
-              <div class="lbl" style="margin-bottom:10px">Chat</div>
+            <div><div class="lbl" style="color:var(--ac)">Pact Terms</div><div id="config" style="margin-top:8px;display:flex;flex-direction:column;gap:2px;font-size:12px"></div></div>
+            <div id="chatPanel" style="display:none;border-top:1px solid var(--bds);padding-top:14px">
+              <div class="lbl" style="margin-bottom:10px;color:var(--ac)">Speak with It</div>
               <div id="chatMsgs" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;margin-bottom:6px;font-size:12px;line-height:1.5"></div>
-              <div style="display:flex;gap:6px"><input type="text" id="chatInput" placeholder="Ask..." style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--bd);background:var(--bg);color:var(--fg);font-family:inherit;font-size:12px"><button id="chatSend" style="font-family:inherit;font-size:12px;font-weight:600;padding:8px 12px;border-radius:6px;border:none;background:var(--ac);color:#fff;cursor:pointer">Send</button></div>
-              <a id="downloadBtn" href="#" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;padding:8px;border-radius:6px;border:1px solid var(--bd);background:var(--sf2);color:var(--fg2);font-size:12px;font-weight:600;text-decoration:none;cursor:pointer">&#8681; Download Report</a>
+              <div style="display:flex;gap:6px"><input type="text" id="chatInput" placeholder="Ask..." style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--bds);background:var(--bg);color:var(--fg);font-family:inherit;font-size:12px"><button id="chatSend" style="font-family:inherit;font-size:12px;font-weight:700;padding:8px 12px;border-radius:6px;border:none;background:var(--ac);color:#fff;cursor:pointer;text-shadow:0 1px 2px rgba(0,0,0,.6)">Send</button></div>
+              <a id="downloadBtn" href="#" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;padding:8px;border-radius:6px;border:1px solid var(--bds);background:var(--sf2);color:var(--fg2);font-size:12px;font-weight:600;text-decoration:none;cursor:pointer">&#8681; Extract Autopsy</a>
               <div style="display:flex;gap:6px;margin-top:6px">
-                <a id="downloadHtmlBtn" href="#" style="flex:1;display:flex;align-items:center;justify-content:center;padding:7px;border-radius:6px;border:1px solid var(--bd);background:var(--sf2);color:var(--fg2);font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">HTML</a>
-                <a id="downloadPdfBtn" href="#" style="flex:1;display:flex;align-items:center;justify-content:center;padding:7px;border-radius:6px;border:1px solid var(--bd);background:var(--sf2);color:var(--fg2);font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">PDF</a>
+                <a id="downloadHtmlBtn" href="#" style="flex:1;display:flex;align-items:center;justify-content:center;padding:7px;border-radius:6px;border:1px solid var(--bds);background:var(--sf2);color:var(--fg2);font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">HTML</a>
+                <a id="downloadPdfBtn" href="#" style="flex:1;display:flex;align-items:center;justify-content:center;padding:7px;border-radius:6px;border:1px solid var(--bds);background:var(--sf2);color:var(--fg2);font-size:11px;font-weight:600;text-decoration:none;cursor:pointer">PDF</a>
               </div>
             </div>
           </aside>
@@ -225,52 +240,52 @@ button:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
       </div>
 
       <!-- HISTORY VIEW -->
-      <div id="historyPanel" style="display:none;flex:1;overflow-y:auto;padding:20px 26px 40px">
-        <div style="font-family:var(--font-dread);font-size:var(--fs-display);color:var(--fg);margin-bottom:6px;letter-spacing:.06em">Past Scans</div>
-        <div style="font-size:13px;color:var(--fg2);margin-bottom:20px">Previous engagements and their reports.</div>
+      <div id="historyPanel" style="display:none;flex:1;overflow-y:auto;padding:22px 26px 40px">
+        <div class="dread-title" style="font-size:var(--fs-display);margin-bottom:6px;text-shadow:0 0 14px rgba(255,26,26,.25),2px 2px 0 #300">The Crypt</div>
+        <div style="font-size:13px;color:var(--fg2);margin-bottom:20px">Corpses of past hunts — unearth their reports.</div>
         <div id="historyList" style="display:flex;flex-direction:column;gap:10px"></div>
-        <div id="historyEmpty" style="display:none;padding:24px;text-align:center;color:var(--fg3);font-size:13px;border:2px dashed var(--bd);border-radius:10px">No past scans yet.</div>
+        <div id="historyEmpty" style="display:none;padding:28px;text-align:center;color:var(--fg3);font-size:13px;border:2px dashed var(--bds);border-radius:10px">The crypt is empty. Nothing has died yet.</div>
       </div>
 
       <!-- CONFIG VIEW -->
-      <div id="configPanel" style="display:none;flex:1;overflow-y:auto;padding:20px 26px 40px;max-width:680px">
-        <div style="font-family:var(--font-dread);font-size:var(--fs-display);color:var(--fg);margin-bottom:4px;letter-spacing:.06em">Config</div>
-        <div style="font-size:13px;color:var(--fg2);margin-bottom:20px">Settings persist in your browser. Set once, auto-use every run.</div>
+      <div id="configPanel" style="display:none;flex:1;overflow-y:auto;padding:22px 26px 40px;max-width:680px">
+        <div class="dread-title" style="font-size:var(--fs-display);margin-bottom:6px;text-shadow:0 0 14px rgba(255,26,26,.25),2px 2px 0 #300">The Altar</div>
+        <div style="font-size:13px;color:var(--fg2);margin-bottom:20px">Carve your pacts into bone. They persist in this browser.</div>
         <div class="config-section">
-          <h3>&#9881; Model</h3>
+          <h3>&#9876; The Spirit (Model)</h3>
           <div style="display:flex;flex-direction:column;gap:10px">
             <div><label class="big-label">API Base URL</label><input type="text" id="cfg-api-url" placeholder="http://127.0.0.1:1234/v1" class="big-input"></div>
-            <div><label class="big-label">API Key</label><input type="text" id="cfg-api-key" placeholder="sk-..." class="big-input"></div>
-            <div><label class="big-label">Model</label>
+            <div><label class="big-label">API Key — blood price</label><input type="text" id="cfg-api-key" placeholder="sk-..." class="big-input"></div>
+            <div><label class="big-label">Spirit</label>
               <div style="display:flex;gap:8px;align-items:center">
                 <select id="cfg-model" class="big-select" style="flex:1"><option value="">Discover first or type below</option></select>
-                <button id="cfgDiscoverBtn" style="font-family:inherit;font-size:12px;font-weight:600;padding:11px 16px;border-radius:8px;border:1.5px solid var(--ac);background:transparent;color:var(--ac);cursor:pointer;white-space:nowrap">Discover</button>
+                <button id="cfgDiscoverBtn" style="font-family:inherit;font-size:12px;font-weight:700;padding:11px 16px;border-radius:8px;border:1.5px solid var(--ac);background:transparent;color:var(--ac);cursor:pointer;white-space:nowrap;text-shadow:0 0 8px var(--acs)">Summon List</button>
               </div>
             </div>
-            <div><label class="big-label">Or type model name</label><input type="text" id="cfg-model-text" placeholder="qwen3.6-35b-a3b-apex" class="big-input"></div>
+            <div><label class="big-label">Or whisper its true name</label><input type="text" id="cfg-model-text" placeholder="qwen3.6-35b-a3b-apex" class="big-input"></div>
           </div>
         </div>
         <div class="config-section">
-          <h3>&#9881; Target Defaults</h3>
+          <h3>&#9876; The Victim (Defaults)</h3>
           <div style="display:flex;flex-direction:column;gap:10px">
             <div><label class="big-label">Default Target</label><input type="text" id="cfg-target" placeholder="example.com" class="big-input"></div>
-            <div><label class="big-label">Default Prompt</label><textarea id="cfg-prompt" placeholder="Full recon and breach assessment..." class="big-input" style="resize:vertical;min-height:60px"></textarea></div>
+            <div><label class="big-label">Default Invocation</label><textarea id="cfg-prompt" placeholder="Full recon and breach assessment..." class="big-input" style="resize:vertical;min-height:60px"></textarea></div>
           </div>
         </div>
         <div style="display:flex;gap:10px;margin-top:16px">
-          <button id="cfgSaveBtn" style="font-family:var(--font-dread);font-size:18px;letter-spacing:.06em;padding:10px 32px;border-radius:8px;border:2px solid var(--ac);background:linear-gradient(135deg,var(--ac),var(--c4));color:#fff;cursor:pointer;flex:1">SAVE</button>
-          <button id="cfgClearBtn" style="font-family:inherit;font-size:12px;font-weight:600;padding:10px 20px;border-radius:8px;border:1.5px solid var(--dg);background:transparent;color:var(--dg);cursor:pointer">Clear All</button>
+          <button id="cfgSaveBtn" class="glitchable" style="font-family:var(--font-horror);font-size:16px;letter-spacing:.08em;padding:12px 32px;border-radius:8px;border:2px solid var(--ac);background:linear-gradient(160deg,#3d0000,#1a0000);color:var(--ac);cursor:pointer;flex:1;text-shadow:0 0 12px rgba(255,26,26,.5);box-shadow:0 0 20px var(--acs)">SEAL THE PACT</button>
+          <button id="cfgClearBtn" style="font-family:inherit;font-size:12px;font-weight:700;padding:12px 20px;border-radius:8px;border:1.5px solid var(--dg);background:transparent;color:var(--dg);cursor:pointer;text-shadow:0 0 6px var(--dgs)">Burn It All</button>
         </div>
         <div id="cfgStatus" style="margin-top:10px;font-size:12px;color:var(--ok);display:none"></div>
       </div>
 
       <!-- FINDINGS VIEW -->
-      <div id="findPanel" style="display:none;flex:1;overflow-y:auto;padding:20px 26px 40px">
-        <div style="font-family:var(--font-dread);font-size:var(--fs-display);color:var(--fg);margin-bottom:6px;letter-spacing:.06em">Findings</div>
-        <div style="font-size:13px;color:var(--fg2);margin-bottom:20px">Bug bounty findings from the last scan. Severity-colored and actionable.</div>
+      <div id="findPanel" style="display:none;flex:1;overflow-y:auto;padding:22px 26px 40px">
+        <div class="dread-title" style="font-size:var(--fs-display);margin-bottom:6px;text-shadow:0 0 14px rgba(255,26,26,.25),2px 2px 0 #300">The Wounds</div>
+        <div style="font-size:13px;color:var(--fg2);margin-bottom:20px">Injuries inflicted upon the target, ranked by how much it bled.</div>
         <div id="findStats" style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap"></div>
         <div id="findList" style="display:flex;flex-direction:column;gap:8px"></div>
-        <div id="findEmpty" style="display:none;padding:24px;text-align:center;color:var(--fg3);font-size:13px;border:2px dashed var(--bd);border-radius:10px">No findings yet. Run a scan first.</div>
+        <div id="findEmpty" style="display:none;padding:28px;text-align:center;color:var(--fg3);font-size:13px;border:2px dashed var(--bds);border-radius:10px">Not a scratch. Feed it again.</div>
       </div>
     </div>
   </div>
@@ -278,7 +293,7 @@ button:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 
 <script type="module">
 const $=id=>document.getElementById(id);const root=$('root');
-const THEMES={light:{bg:'#F5F0ED',sb:'#EDE5E0',sf:'#FFFFFF',sf2:'#F8F4F0',bd:'#DCCCC4',bds:'#C8B0A4',fg:'#1A0E0A',fg2:'#5A3E32',fg3:'#8A6E62',ac:'#CC0000',acs:'rgba(204,0,0,0.08)',ok:'#2E7D32',oks:'rgba(46,125,50,0.10)',wn:'#E65100',wns:'rgba(230,81,0,0.10)',dg:'#C62828',dgs:'rgba(198,40,40,0.10)',c2:'#D50000',c2s:'rgba(213,0,0,0.10)',c3:'#9B0000',c4:'#6B0000'},dark:{bg:'#080404',sb:'#0C0606',sf:'#120A0A',sf2:'#1C1212',bd:'#301A1A',bds:'#442626',fg:'#F0E6E0',fg2:'#C4ADA2',fg3:'#957268',ac:'#FF1A1A',acs:'rgba(255,26,26,0.10)',ok:'#00C853',oks:'rgba(0,200,83,0.10)',wn:'#FF5252',wns:'rgba(255,82,82,0.12)',dg:'#FF1744',dgs:'rgba(255,23,68,0.10)',c2:'#FF4444',c2s:'rgba(255,68,68,0.10)',c3:'#CC0000',c4:'#9B0000'}};
+const THEMES={light:{bg:'#EDE4DC',sb:'#E3D6CC',sf:'#F7F1EA',sf2:'#EFE6DD',bd:'#C9B4A6',bds:'#B0907C',fg:'#240A0A',fg2:'#5D3530',fg3:'#8F6A5E',ac:'#A50000',acs:'rgba(165,0,0,0.09)',ok:'#226644',oks:'rgba(34,102,68,0.10)',wn:'#C25400',wns:'rgba(194,84,0,0.10)',dg:'#8F0000',dgs:'rgba(143,0,0,0.10)',c2:'#B30024',c2s:'rgba(179,0,36,0.09)',c3:'#7A0000',c4:'#4D0000'},dark:{bg:'#050202',sb:'#0A0404',sf:'#0F0706',sf2:'#180C0B',bd:'#2E1412',bds:'#4A1F1B',fg:'#F2E3DC',fg2:'#C7A89C',fg3:'#8F675B',ac:'#FF1A1A',acs:'rgba(255,26,26,0.10)',ok:'#19E07A',oks:'rgba(25,224,122,0.09)',wn:'#FF7A00',wns:'rgba(255,122,0,0.12)',dg:'#FF2222',dgs:'rgba(255,34,34,0.12)',c2:'#FF4D4D',c2s:'rgba(255,77,77,0.10)',c3:'#CC0033',c4:'#7A0018'}};
 let theme=localStorage.getItem('drdoom_theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
 function applyTheme(){const m=THEMES[theme];for(const k in m)root.style.setProperty('--'+k,m[k]);root.style.colorScheme=theme;$('themeBtn').innerHTML=theme==='light'?'&#9789;':'&#9790;';}
 $('themeBtn').onclick=()=>{theme=theme==='dark'?'light':'dark';localStorage.setItem('drdoom_theme',theme);applyTheme();};applyTheme();
@@ -286,7 +301,7 @@ $('themeBtn').onclick=()=>{theme=theme==='dark'?'light':'dark';localStorage.setI
 const CONFIG_KEY='drdoom_config';const SESSION_KEY='drdoom_session';
 function loadConfig(){try{const c=JSON.parse(localStorage.getItem(CONFIG_KEY));if(c)return c;}catch(e){}return{};}
 function saveConfig(c){localStorage.setItem(CONFIG_KEY,JSON.stringify(c));}
-function applyConfigToUI(c){if(c.apiUrl)$('cfg-api-url').value=c.apiUrl;if(c.apiKey)$('cfg-api-key').value=c.apiKey;if(c.model)$('cfg-model-text').value=c.model;if(c.target){$('scope').value=c.target;$('cfg-target').value=c.target;}if(c.prompt){$('prompt').value=c.prompt;$('cfg-prompt').value=c.prompt;}}
+function applyConfigToUI(c){if(c.apiUrl)$('cfg-api-url').value=c.apiUrl;if(c.apiKey)$('cfg-api-key').value=c.apiKey;if(c.model)$('cfg-model-text').value=c.model;if(c.target){$('scope').value=c.target;$('cfg-target').value=c.target;}if(c.prompt){$('prompt').value=c.prompt;$('cfg-prompt').value=c.prompt;}if(c.mode)$('mode').value=c.mode;}
 const cfg=loadConfig();applyConfigToUI(cfg);
 
 $('cfgSaveBtn').onclick=()=>{const c={apiUrl:$('cfg-api-url').value.trim(),apiKey:$('cfg-api-key').value.trim(),model:$('cfg-model-text').value.trim()||$('cfg-model').value,target:$('cfg-target').value.trim(),prompt:$('cfg-prompt').value.trim()};saveConfig(c);applyConfigToUI(c);const st=$('cfgStatus');st.style.display='block';st.textContent='Saved.';setTimeout(()=>{st.style.display='none';},2000);};
@@ -385,7 +400,7 @@ window.toggleFeedItem=function(headId,expandId){
 
 const PHASES=[['route','Route'],['explore','Explore'],['edit','Edit'],['verify','Verify'],['done','Done']];let lastRelay='',lastTasks='',rendered=[];
 function resetFeed(){rendered=[];$('feed').innerHTML='';$('empty').style.display='block';}
-function paint(){const S=reduce();const feedEl=$('feed');feedIdCounter=0;let grew=false;for(let i=0;i<S.blocks.length;i++){const html=blockHTML(S.blocks[i]);if(rendered[i]===undefined){const d=document.createElement('div');d.style.animation='fadeUp .3s ease both';d.innerHTML=html;feedEl.appendChild(d);rendered[i]=html;grew=true;}else if(rendered[i]!==html){feedEl.children[i].innerHTML=html;rendered[i]=html;}}while(feedEl.children.length>S.blocks.length){feedEl.removeChild(feedEl.lastChild);rendered.pop();}if(grew)$('feedScroll').scrollTop=$('feedScroll').scrollHeight;$('empty').style.display=S.blocks.length?'none':'block';$('runTitle').textContent=meta.goal||'no run yet';const r=meta.status==='running'&&!S.done,p=S.done?.status==='passed'||meta.status==='passed',f=meta.status&&['failed','aborted','error'].includes(meta.status);const pl=$('statusPill');pl.style.background=p?'var(--oks)':f?'var(--dgs)':r?'var(--acs)':'var(--sf2)';pl.style.color=p?'var(--ok)':f?'var(--dg)':r?'var(--ac)':'var(--fg3)';pl.innerHTML=(r?'<span style="width:5px;height:5px;border-radius:50%;background:currentColor;animation:pulseDot 1.15s infinite"></span>':'')+'<span>'+(p?'Passed':f?meta.status[0].toUpperCase()+meta.status.slice(1):r?'Running':'Idle')+'</span>';$('pairChip').innerHTML=S.pair?'<span style="width:6px;height:6px;border-radius:50%;background:'+colorFor(pairKey(S.pair))+'"></span>'+esc(shortLabel(S.pair)):'<span style="color:var(--fg3)">none</span>';$('elapsed').textContent=fmtTime(S.t0?(S.t1-S.t0)/1000:0);$('mOdds').textContent=S.odds!=null?S.odds.toFixed(2):'\u2014';const hEl=$('mHealth');hEl.textContent=S.health!=null?S.health.toFixed(2):'\u2014';hEl.style.color=S.health==null?'var(--fg)':S.health>=.7?'var(--ok)':S.health>=.4?'var(--wn)':'var(--dg)';$('mTests').textContent=S.checks||'\u2014';$('mEsc').textContent=S.escalations;$('mEvents').textContent=events.length;$('navRuns').textContent=S.byPair.size||0;const dp=PHASES.filter(([k])=>S.phases.has(k)).length;$('pStep').textContent=dp+' / '+PHASES.length;$('pPct').textContent=Math.round(dp/PHASES.length*100)+'%';$('pBar').style.width=(dp/PHASES.length*100)+'%';if(S.byPair.size){const sp=Math.max(1,S.t1-S.t0);const rows=[...S.byPair.values()].map(r=>{const l=(r.t0-S.t0)/sp*100,w=Math.max(2,(r.t1-r.t0)/sp*100),a=pairKey(r.pair)===pairKey(S.pair);return'<div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">'+avatar(r.pair,16)+'<span style="font-size:11px;color:'+(a?'var(--fg)':'var(--fg2)')+';font-weight:'+(a?600:500)+';width:56px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(shortLabel(r.pair))+'</span><div style="position:relative;flex:1;height:8px;border-radius:4px;background:var(--bd);overflow:hidden"><div style="position:absolute;left:'+l.toFixed(1)+'%;width:'+w.toFixed(1)+'%;top:0;bottom:0;background:'+colorFor(pairKey(r.pair))+';border-radius:3px"></div></div></div>';}).join('');if(rows!==lastRelay){$('relay').innerHTML=rows;lastRelay=rows;}}const th=PHASES.map(([k,lb],i)=>{const d=S.phases.has(k),a=!d&&PHASES.slice(0,i).every(([j])=>S.phases.has(j))&&r;const mk=d?'<svg width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="var(--ok)"/><path d="m7.5 12.4 3 3 6-6.6" fill="none" stroke="#fff" stroke-width="2.2"/></svg>':a?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" stroke-width="2.5" style="animation:spin .8s linear infinite"><path d="M12 3a9 9 0 1 0 9 9"/></svg>':'<span style="width:11px;height:11px;border-radius:50%;border:1.5px solid var(--bds)"></span>';return'<div style="display:flex;align-items:center;gap:9px;padding:6px 7px;border-radius:7px;'+(a?'background:var(--acs)':'')+'"><span style="flex:none;width:16px;height:16px;display:flex;align-items:center;justify-content:center">'+mk+'</span><span style="font-size:12px;color:'+(a?'var(--fg)':d?'var(--fg2)':'var(--fg3)')+';font-weight:'+(a?600:400)+'">'+lb+'</span></div>';}).join('');if(th!==lastTasks){$('tasks').innerHTML=th;lastTasks=th;}const hs=S.healthSeries;$('rHealth').textContent=S.health!=null?S.health.toFixed(2):'\u2014';if(hs.length>1){const W=200,H=60,pa=4;const pts=hs.map((v,i)=>((i/(hs.length-1))*W).toFixed(1)+','+(pa+(1-v)*(H-2*pa)).toFixed(1)).join(' ');$('hPoly').setAttribute('points',pts);$('hArea').setAttribute('points','0,'+H+' '+pts+' '+W+','+H);if(S.escAt!=null){const mx=(S.escAt/(hs.length-1))*W;$('hMark').setAttribute('x1',mx);$('hMark').setAttribute('x2',mx);}}$('hMin').textContent=hs.length?Math.min(...hs).toFixed(2):'\u2014';}
+function paint(){const S=reduce();const feedEl=$('feed');feedIdCounter=0;let grew=false;for(let i=0;i<S.blocks.length;i++){const html=blockHTML(S.blocks[i]);if(rendered[i]===undefined){const d=document.createElement('div');d.style.animation='fadeUp .3s ease both';d.innerHTML=html;feedEl.appendChild(d);rendered[i]=html;grew=true;}else if(rendered[i]!==html){feedEl.children[i].innerHTML=html;rendered[i]=html;}}while(feedEl.children.length>S.blocks.length){feedEl.removeChild(feedEl.lastChild);rendered.pop();}if(grew)$('feedScroll').scrollTop=$('feedScroll').scrollHeight;$('empty').style.display=S.blocks.length?'none':'block';$('runTitle').textContent=meta.goal||'no run yet';const r=meta.status==='running'&&!S.done,p=S.done?.status==='passed'||meta.status==='passed',f=meta.status&&['failed','aborted','error'].includes(meta.status);const pl=$('statusPill');pl.style.background=p?'var(--oks)':f?'var(--dgs)':r?'var(--acs)':'var(--sf2)';pl.style.color=p?'var(--ok)':f?'var(--dg)':r?'var(--ac)':'var(--fg3)';pl.innerHTML=(r?'<span style="width:5px;height:5px;border-radius:50%;background:currentColor;animation:pulseDot 1.15s infinite"></span>':'')+'<span>'+(p?'Passed':f?meta.status[0].toUpperCase()+meta.status.slice(1):r?'Running':'Idle')+'</span>';$('pairChip').innerHTML=S.pair?'<span style="width:6px;height:6px;border-radius:50%;background:'+colorFor(pairKey(S.pair))+'"></span>'+esc(shortLabel(S.pair)):'<span style="color:var(--fg3)">none</span>';$('elapsed').textContent=fmtTime(S.t0?(S.t1-S.t0)/1000:0);$('mOdds').textContent=S.odds!=null?S.odds.toFixed(2):'\u2014';const hEl=$('mHealth');hEl.textContent=S.health!=null?S.health.toFixed(2):'\u2014';hEl.style.color=S.health==null?'var(--fg)':S.health>=.7?'var(--ok)':S.health>=.4?'var(--wn)':'var(--dg)';$('mTests').textContent=S.checks||'\u2014';$('mEsc').textContent=S.escalations;$('mEvents').textContent=events.length;$('navRuns').textContent=S.byPair.size||0;if(window._llmStep&&window._llmStep.max){const st=window._llmStep;$('mLlmStep').textContent=st.n+' / '+st.max;const act=st.action||'-';$('mLlmAction').textContent=act+' '+(st.running?'▶ running…':(st.status==='ok'?'✓':st.status==='error'?'✗':''))+(st.elapsed_s?(' · '+st.elapsed_s+'s'):'');$('mLlmStep').style.color=st.running?'var(--ac)':(st.status==='error'?'var(--dg)':'var(--c2)');$('mLlmAction').title=(st.reason||'')+' '+(st.params||'');}else if($('mLlmStep')){$('mLlmStep').textContent='\u2014';if($('mLlmAction'))$('mLlmAction').textContent='';}const dp=PHASES.filter(([k])=>S.phases.has(k)).length;$('pStep').textContent=dp+' / '+PHASES.length;$('pPct').textContent=Math.round(dp/PHASES.length*100)+'%';$('pBar').style.width=(dp/PHASES.length*100)+'%';if(S.byPair.size){const sp=Math.max(1,S.t1-S.t0);const rows=[...S.byPair.values()].map(r=>{const l=(r.t0-S.t0)/sp*100,w=Math.max(2,(r.t1-r.t0)/sp*100),a=pairKey(r.pair)===pairKey(S.pair);return'<div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">'+avatar(r.pair,16)+'<span style="font-size:11px;color:'+(a?'var(--fg)':'var(--fg2)')+';font-weight:'+(a?600:500)+';width:56px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(shortLabel(r.pair))+'</span><div style="position:relative;flex:1;height:8px;border-radius:4px;background:var(--bd);overflow:hidden"><div style="position:absolute;left:'+l.toFixed(1)+'%;width:'+w.toFixed(1)+'%;top:0;bottom:0;background:'+colorFor(pairKey(r.pair))+';border-radius:3px"></div></div></div>';}).join('');if(rows!==lastRelay){$('relay').innerHTML=rows;lastRelay=rows;}}const th=PHASES.map(([k,lb],i)=>{const d=S.phases.has(k),a=!d&&PHASES.slice(0,i).every(([j])=>S.phases.has(j))&&r;const mk=d?'<svg width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="var(--ok)"/><path d="m7.5 12.4 3 3 6-6.6" fill="none" stroke="#fff" stroke-width="2.2"/></svg>':a?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" stroke-width="2.5" style="animation:spin .8s linear infinite"><path d="M12 3a9 9 0 1 0 9 9"/></svg>':'<span style="width:11px;height:11px;border-radius:50%;border:1.5px solid var(--bds)"></span>';return'<div style="display:flex;align-items:center;gap:9px;padding:6px 7px;border-radius:7px;'+(a?'background:var(--acs)':'')+'"><span style="flex:none;width:16px;height:16px;display:flex;align-items:center;justify-content:center">'+mk+'</span><span style="font-size:12px;color:'+(a?'var(--fg)':d?'var(--fg2)':'var(--fg3)')+';font-weight:'+(a?600:400)+'">'+lb+'</span></div>';}).join('');if(th!==lastTasks){$('tasks').innerHTML=th;lastTasks=th;}const hs=S.healthSeries;$('rHealth').textContent=S.health!=null?S.health.toFixed(2):'\u2014';if(hs.length>1){const W=200,H=60,pa=4;const pts=hs.map((v,i)=>((i/(hs.length-1))*W).toFixed(1)+','+(pa+(1-v)*(H-2*pa)).toFixed(1)).join(' ');$('hPoly').setAttribute('points',pts);$('hArea').setAttribute('points','0,'+H+' '+pts+' '+W+','+H);if(S.escAt!=null){const mx=(S.escAt/(hs.length-1))*W;$('hMark').setAttribute('x1',mx);$('hMark').setAttribute('x2',mx);}}$('hMin').textContent=hs.length?Math.min(...hs).toFixed(2):'\u2014';}
 
 function switchView(view){$('navRunsBtn').classList.toggle('active',view==='runs');$('navHistoryBtn').classList.toggle('active',view==='history');$('navConfigBtn').classList.toggle('active',view==='config');$('navFindBtn').classList.toggle('active',view==='findings');$('runsView').style.display=view==='runs'?'contents':'none';$('historyPanel').style.display=view==='history'?'block':'none';$('configPanel').style.display=view==='config'?'block':'none';$('findPanel').style.display=view==='findings'?'block':'none';if(view==='findings')renderFindings();if(view==='runs'&&!rendered.length)$('empty').style.display='block';}
 $('navRunsBtn').onclick=()=>switchView('runs');
@@ -397,30 +412,32 @@ function setConn(s,t){$('connDot').style.background=s==='live'?'var(--ok)':s==='
 const es=new EventSource('/events'+(MRBOOM_TOKEN?'?token='+encodeURIComponent(MRBOOM_TOKEN):''));es.addEventListener('open',()=>setConn('live','live'));es.addEventListener('error',()=>setConn('lost','reconnecting\u2026'));
 es.addEventListener('meta',e=>{const m=JSON.parse(e.data);if(m.task_id!==meta.task_id){events.length=0;resetFeed();lastRelay='';lastTasks='';pairColors.clear();}meta={...meta,...m};$('repoName').textContent=meta.goal||'workspace';$('repoSub').textContent=meta.status==='running'?'running':meta.goal?'done':'waiting';paint();debouncedSave();});
 es.addEventListener('ir',e=>{events.push(JSON.parse(e.data));if(events.length>200)events.splice(0,events.length-200);schedule();});
-es.addEventListener('done',async e=>{const st=JSON.parse(e.data).status;meta.status=st;paint();debouncedSave();if(lastEid){try{const r=await(await fetch('/api/engagements/'+lastEid+'/state')).json();if(r&&r.status!=='error'){window._lastScanData=r;renderFindings();}}catch(ex){}}});
+es.addEventListener('done',async e=>{const st=JSON.parse(e.data).status;meta.status=st;paint();debouncedSave();if(lastEid){try{const r=await(await fetch('/api/engagements/'+lastEid+'/state')).json();if(r&&r.status!=='error'){window._lastScanData=r;if(r.llm_step)window._llmStep=r.llm_step;renderFindings();}}catch(ex){}}});
 let queued=false;function schedule(){if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;debouncedSave();paint();});}
 
 $('demoBtn').onclick=async()=>{$('demoBtn').disabled=true;$('demoBtn').textContent='starting\u2026';await fetch('/api/demo',{method:'POST'}).catch(()=>{});$('demoBtn').disabled=false;$('demoBtn').textContent='Run mock demo';};
 
 $('runBtn').onclick=async()=>{
-  const bu=$('cfg-api-url').value.trim(),ak=$('cfg-api-key').value.trim(),mo=$('cfg-model-text').value.trim()||$('cfg-model').value,sc=$('scope').value.trim(),pr=$('prompt').value.trim();
-  const nc=loadConfig();nc.apiUrl=bu;nc.apiKey=ak;nc.model=mo;nc.target=sc;nc.prompt=pr;saveConfig(nc);
+  const bu=$('cfg-api-url').value.trim(),ak=$('cfg-api-key').value.trim(),mo=$('cfg-model-text').value.trim()||$('cfg-model').value,sc=$('scope').value.trim(),pr=$('prompt').value.trim(),mode=$('mode').value;
+  const nc=loadConfig();nc.apiUrl=bu;nc.apiKey=ak;nc.model=mo;nc.target=sc;nc.prompt=pr;nc.mode=mode;saveConfig(nc);
   if(!sc){alert('Enter a target');return;}
-  if(!mo){alert('Configure a model in Config tab first');return;}
+  if(mode!=='trinity'&&!mo){alert('Configure a model in Config tab first');return;}
   $('runBtn').disabled=true;$('runBtn').textContent='checking...';
   try{
-    const ck=await(await fetch('/api/models/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({problem:'',base_url:bu,model:mo,api_key:ak})})).json();
-    if(!ck.available){alert('Model unavailable: '+ck.error);$('runBtn').disabled=false;$('runBtn').textContent='RUN';return;}
+    if(mode!=='trinity'){
+      const ck=await(await fetch('/api/models/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({problem:'',base_url:bu,model:mo,api_key:ak})})).json();
+      if(!ck.available){alert('Model unavailable: '+ck.error);$('runBtn').disabled=false;$('runBtn').textContent='RUN';return;}
+    }
     $('runBtn').textContent='starting...';
     const cd=await(await fetch('/api/engagements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:sc,scope:[sc]})})).json();
     lastEid=cd.id;sessionCode=cd.code||'';
     if(sessionCode){$('sessionBadge').style.display='inline-block';$('sessionBadge').textContent=sessionCode;}
     // Clear previous session from LS
-    events.length=0;resetFeed();
+    events.length=0;resetFeed();lastRelay='';lastTasks='';rendered=[];window._llmStep=null;try{$('mLlmStep').textContent='\u2014';$('mLlmAction').textContent='';}catch(e){}
     localStorage.removeItem(SESSION_KEY);
     saveSessionToLS();
     switchView('runs');
-    await fetch('/api/engagements/'+cd.id+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({problem:pr,base_url:bu,model:mo,api_key:ak})});
+    await fetch('/api/engagements/'+cd.id+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({problem:pr,base_url:bu,model:mo,api_key:ak,mode:mode})});
   }catch(e){alert('Error: '+e.message);}
   $('runBtn').disabled=false;$('runBtn').textContent='RUN';
 };
@@ -430,11 +447,10 @@ const md=typeof marked!=='undefined'&&marked.parse?s=>marked.parse(hl(s)):esc;
 
 async function loadHistory(){try{const d=await(await fetch('/api/history')).json();$('navHistoryCount').textContent=d.scans.length;if(!d.scans.length){$('historyList').innerHTML='';$('historyEmpty').style.display='block';return;}$('historyEmpty').style.display='none';$('historyList').innerHTML=d.scans.map(s=>{
   const dt=s.completed_at?new Date(s.completed_at).toLocaleString():'?';const sc=s.status==='complete'?'status-ok':s.status==='error'?'status-err':'status-run';const code=s.code||'';
-  return'<div class="hist-widget" id="hw_'+esc(s.id)+'"><div class="hw-top"><span class="hw-name">'+esc(s.scope||'?')+'</span>'+(code?'<span class="hw-code">'+esc(code)+'</span>':'')+'</div><div class="hw-meta"><span>'+esc(dt)+'</span><span>'+esc(s.model||'N/A')+'</span><span class="'+sc+'">'+esc(s.status)+'</span></div><div class="hw-actions"><button class="hist-btn primary" onclick="viewReportInline(\''+jesc(s.id)+'\')">View Report</button><button class="hist-btn danger" onclick="deleteHistory(\''+jesc(s.id)+'\')">Delete</button>'+(code?'<button class="hist-btn" onclick="restoreSessionEvents(\''+jesc(s.id)+'\')">View Events</button>':'')+'</div><div class="report-expand" id="re_'+esc(s.id)+'"></div></div>';
+  return'<div class="hist-widget" id="hw_'+esc(s.id)+'"><div class="hw-top"><span class="hw-name">'+esc(s.scope||'?')+'</span>'+(code?'<span class="hw-code">'+esc(code)+'</span>':'')+'</div><div class="hw-meta"><span>'+esc(dt)+'</span><span>'+esc(s.model||'N/A')+'</span><span class="'+sc+'">'+esc(s.status)+'</span></div><div class="hw-actions"><button class="hist-btn primary" onclick="window.open(\'/api/engagements/'+esc(s.id)+'/download/html\',\'_blank\')">Open Full Scan</button><button class="hist-btn" onclick="location.hash=&quot;#'+esc(s.id)+'&quot;">Attach</button><button class="hist-btn primary" onclick="viewReportInline(\''+jesc(s.id)+'\')">View Report</button><button class="hist-btn danger" onclick="deleteHistory(\''+jesc(s.id)+'\')">Delete</button>'+(code?'<button class="hist-btn" onclick="restoreSessionEvents(\''+jesc(s.id)+'\')">View Events</button>':'')+'</div><div class="report-expand" id="re_'+esc(s.id)+'"></div></div>';
 }).join('');}catch(e){console.error(e);}}
 window.deleteHistory=async eid=>{if(!confirm('Delete?'))return;await fetch('/api/history/'+eid,{method:'DELETE'});await loadHistory();};
 window.restoreSessionEvents=async eid=>{try{const d=await(await fetch('/api/history/'+eid)).json();if(d&&d.events){switchView('runs');events.length=0;if(d.code){sessionCode=d.code;$('sessionBadge').style.display='inline-block';$('sessionBadge').textContent=d.code;}events.push(...(d.events||[]));resetFeed();meta={...meta,goal:d.scope||'',status:'complete'};$('repoName').textContent=meta.goal;schedule();}}catch(e){console.error(e);}};
-window.viewReportInline=async eid=>{const re=$('re_'+eid);if(!re)return;if(re.classList.contains('open')){re.classList.remove('open');re.innerHTML='';return;}re.innerHTML='<div style="padding:14px;text-align:center;color:var(--fg3);font-size:12px">Loading...</div>';re.classList.add('open');try{const d=await(await fetch('/api/history/'+eid)).json();const report=d.report||'';let summary=report;const idx=report.indexOf('## AI Breach Assessment');if(idx!==-1){const nextHeading=report.indexOf('\n## ',idx+3);summary=report.substring(idx,nextHeading!==-1?nextHeading:undefined);}re.innerHTML='<div class="re-header"><span style="font-weight:700;font-size:14px;color:var(--ac)">&#9760; Vulnerability Summary</span><div style="display:flex;gap:6px"><button class="hist-btn primary" onclick="downloadReport(\''+eid+'\',\''+esc(d.scope||'report')+'\')">Download .md</button><button class="hist-btn" onclick="document.getElementById(\'re_'+eid+'\').classList.remove(\'open\');document.getElementById(\'re_'+eid+'\').innerHTML=\'\'">Close</button></div></div><div class="re-body md">'+md(summary)+'</div>';}catch(e){re.innerHTML='<div style="padding:14px;color:var(--dg);font-size:12px">Error loading report: '+esc(e.message)+'</div>';}};
 window.downloadReport=async(eid,name)=>{try{const d=await(await fetch('/api/history/'+eid)).json();const blob=new Blob([d.report||''],{type:'text/markdown'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(name||'report')+'_report.md';a.click();URL.revokeObjectURL(a.href);}catch(e){alert('Download failed: '+e.message);}};
 fetch('/api/history').then(r=>r.json()).then(d=>{$('navHistoryCount').textContent=d.scans.length;}).catch(()=>{});
 
@@ -447,7 +463,59 @@ $('downloadBtn').onclick=e=>{if(lastEid){e.preventDefault();window.open('/api/en
 $('downloadHtmlBtn').onclick=e=>{if(lastEid){e.preventDefault();window.open('/api/engagements/'+lastEid+'/download/html','_blank');}};
 $('downloadPdfBtn').onclick=e=>{if(lastEid){e.preventDefault();window.open('/api/engagements/'+lastEid+'/download/pdf','_blank');}};
 const _p=paint;paint=function(){_p();if(meta.status==='passed'||meta.status==='failed'){$('chatPanel').style.display='block';if(lastEid){$('downloadBtn').href='/api/engagements/'+lastEid+'/download';$('downloadHtmlBtn').href='/api/engagements/'+lastEid+'/download/html';$('downloadPdfBtn').href='/api/engagements/'+lastEid+'/download/pdf';}}};
-setInterval(()=>{if(meta.status==='running')paint();},500);paint();
+setInterval(()=>{if(meta.status==='running')paint();syncStopBtn();},500);paint();
+
+// ─── DEEP-LINK ATTACH: /#EID opens any past or running scan ────────
+window._llmStep=null;
+async function attachToScan(eid){
+  lastEid=eid;sessionCode='';
+  events.length=0;resetFeed();lastRelay='';lastTasks='';rendered=[];
+  try{$('feedScroll').scrollTop=0;}catch(e){}
+  $('runTitle').textContent='EID '+eid;
+  try{
+    const resp=await fetch('/api/engagements/'+eid+'/state');
+    if(!resp.ok)throw new Error('not in memory: '+resp.status);
+    const st=await resp.json();
+    // live engagement (running or fresh in-memory record)
+    if(st.events&&st.events.length){events.push(...st.events);schedule();}
+    window._lastScanData=st;
+    window._llmStep=st.llm_step||null;
+    meta={...meta,task_id:eid,goal:st.progress||'engagement '+eid,status:st.status==='complete'?'passed':st.status==='error'?'error':(st.status==='running'?'running':'idle')};
+    if(st.progress)meta.goal=st.scope||st.progress;
+    if(st.code){sessionCode=st.code;$('sessionBadge').style.display='inline-block';$('sessionBadge').textContent=sessionCode;}
+    renderFindings();
+    switchView('runs');schedule();
+    if(!attachTimer){attachTimer=setInterval(pollAttached,3000);}
+  }catch(e){
+    // fall back to persisted history
+    try{
+      const d=await(await fetch('/api/history/'+eid)).json();
+      if(d&&d.events&&d.events.length){events.push(...d.events);schedule();}
+      if(d){window._lastScanData=d;meta.goal=d.scope||'';meta.status=d.status==='complete'?'passed':'error';renderFindings();switchView('runs');schedule();}
+    }catch(e2){alert('Engagement not found: '+eid);}
+  }
+}
+let attachTimer=null;
+async function pollAttached(){
+  if(!lastEid)return;
+  try{
+    const st=await(await fetch('/api/engagements/'+lastEid+'/state')).json();
+    if(st&&st.events&&st.events.length>events.length){events.length=0;events.push(...st.events);schedule();}
+    if(st&&st.llm_step)window._llmStep=st.llm_step;
+    if(st&&st.status&&st.status!==meta.status){
+      meta.status=st.status==='complete'?'passed':st.status==='error'?'error':(st.status==='running'?'running':meta.status);
+      if(st.status!=='running'){window._lastScanData=st;renderFindings();}
+    }
+    if(st&&st.progress)meta.goal=st.progress;
+  }catch(e){}
+}
+function parseHashEid(){const m=(location.hash||'').match(/#([a-f0-9]{8})/);return m?m[1]:null;}
+function syncStopBtn(){const b=$('stopScanBtn');if(!b)return;b.style.display=(lastEid&&meta.status==='running')?'inline-flex':'none';}
+async function stopScan(){if(!lastEid)return;if(!confirm('Stop this scan? It will finalize a report from everything found so far.'))return;const b=$('stopScanBtn');b.disabled=true;b.textContent='stopping\u2026';try{await fetch('/api/engagements/'+lastEid+'/stop',{method:'POST'});}catch(e){}b.disabled=false;b.innerHTML='&#9724; STOP';}
+window.stopScan=stopScan;window.switchView=switchView;
+const _startupEid=parseHashEid();
+if(_startupEid){attachToScan(_startupEid);}
+window.addEventListener('hashchange',()=>{const h=parseHashEid();if(h&&h!==lastEid)attachToScan(h);});
 
 // ─── FINDINGS DASHBOARD ────────────────────────────────────────
 function renderFindings(){
@@ -472,6 +540,10 @@ function renderFindings(){
   if(data.bb_validations&&data.bb_validations.length)data.bb_validations.forEach(f=>findings.push({type:'Config Validation',severity:f.severity||'low',title:`${f.title||f.type} @ ${f.url}`,detail:`${f.type} — ${f.cwe||''}<br>Evidence: ${f.evidence||''}`,url:f.url}));
   if(data.bb_agentic&&data.bb_agentic.length)data.bb_agentic.forEach(f=>findings.push({type:'Agentic Step',severity:f.outcome==='ok'?'medium':'info',title:`Iter ${f.iter}: ${f.command||''}`,detail:`Outcome: ${f.outcome} (HTTP ${f.status})<br>Evidence: ${f.evidence||''}`,url:f.url}));
   if(data.bb_agentic_findings&&data.bb_agentic_findings.length)data.bb_agentic_findings.forEach(f=>findings.push({type:'Agentic Discovery',severity:f.severity||'medium',title:`${f.title||f.type} @ ${f.url}`,detail:`${f.type} — ${f.cwe||''}<br>Evidence: ${f.evidence||''}`,url:f.url}));
+  if(data.bb_ssh_access)data.bb_ssh_access.filter(f=>f.success).forEach(f=>findings.push({type:'SSH Shell',severity:'critical',title:`Shell via ${f.username}@${f.host} (weak/default creds)`,detail:`${f.evidence||''}${f.flag?'<br><br>🚩 FLAG: '+f.flag:''}`,url:'ssh://'+f.host}));
+  if(data.bb_lan_sweep){(data.bb_lan_sweep.origins||[]).forEach(f=>findings.push({type:'LAN Origin',severity:'high',title:`Origin box ${f.ip}:${f.port} unmasked (${f.match})`,detail:`${f.evidence||''} — title: ${f.title||'?'}`,url:''}));const so=(data.bb_lan_sweep.ssh_open||[]);if(so.length)findings.push({type:'LAN Recon',severity:'medium',title:`${so.length} SSH-open hosts on LAN`,detail:so.join('<br>'),url:''});}
+  if(data.bb_wayback_js_diff)data.bb_wayback_js_diff.filter(f=>f.kind==='wayback_js_history').forEach(f=>findings.push({type:'Archived JS Leak',severity:'high',title:`${f.url} still leaks ${f.endpoints.length} endpoints + dev block`,detail:`Secrets: ${(f.secrets||[]).join(', ').slice(0,200)}<br>Endpoints: ${(f.endpoints||[]).join(', ')}`,url:'https://web.archive.org/web/0/'+f.url.replace(/^https?:/,'')}));
+  if(data.flag_captured&&data.flag_captured.length)findings.push({type:'Objective',severity:'critical',title:`🚩 FLAG CAPTURED: ${data.flag_captured[0]}`,detail:data.flag_captured.join('<br>'),url:''});
   if(data.bb_ptt&&data.bb_ptt.nodes){const ur=data.bb_ptt.nodes.filter(n=>n.status==='unresolved');if(ur.length)findings.push({type:'Task Tree',severity:'medium',title:`${ur.length} unresolved PTT tasks`,detail:ur.slice(0,6).map(n=>`${n.task} (${n.stage}): ${n.detail||''}`).join('<br>'),url:''});}
   if(data.bb_tech){const flat=Object.entries(data.bb_tech).filter(([u,t])=>t&&t.length);if(flat.length)findings.push({type:'Tech Stack',severity:'info',title:`${flat.reduce((a,[u,t])=>a+t.length,0)} technologies identified`,detail:flat.slice(0,4).map(([u,t])=>`${u}: ${t.join(', ')}`).join('<br>'),url:''});}
   if(data.pd_nuclei)data.pd_nuclei.forEach(f=>findings.push({type:'Nuclei',severity:f.severity||'info',title:f.name||f.template,detail:`URL: ${f.url||f.matched||''}`,url:f.url||''}));
@@ -479,6 +551,7 @@ function renderFindings(){
   if(data.bb_dirbust){const total=Object.values(data.bb_dirbust).reduce((a,b)=>a+b.length,0);if(total)findings.push({type:'Directories',severity:'medium',title:`${total} accessible paths`,detail:Object.entries(data.bb_dirbust).slice(0,2).map(([u,p])=>`${u}: ${p.slice(0,5).map(x=>x[0]).join(', ')}`).join('<br>'),url:''});}
   if(data.bb_fuzz&&data.bb_fuzz.length)data.bb_fuzz.slice(0,25).forEach(f=>findings.push({type:'Fuzz Path',severity:f.status===200?'medium':'low',title:`${f.url} (${f.status})`,detail:`Size: ${f.size||'?'}`,url:f.url}));
   if(data.missing_security_headers&&data.missing_security_headers.length)findings.push({type:'Security Headers',severity:'low',title:`${data.missing_security_headers.length} missing`,detail:data.missing_security_headers.join(', '),url:''});
+  if(data.findings&&data.findings.length)data.findings.forEach(f=>{if(f&&f.type)findings.push({type:f.type,severity:f.severity||'medium',title:f.title||`${f.type} @ ${f.url||''}`,detail:`${f.evidence||''}${f.payload?'<br>Payload: '+esc(f.payload):''}${f.cwe?' ('+f.cwe+')':''}`,url:f.url||''});});
   if(!findings.length){list.innerHTML='';empty.style.display='block';stats.innerHTML='';$('navFindCount').style.display='none';return;}
   empty.style.display='none';
   const sevCount={critical:0,high:0,medium:0,low:0,info:0};
@@ -499,5 +572,3 @@ function renderFindings(){
 window._lastScanData={};
 window.viewReportInline=async function(eid){const re=$('re_'+eid);if(!re)return;if(re.classList.contains('open')){re.classList.remove('open');re.innerHTML='';return;}re.innerHTML='<div style="padding:14px;text-align:center;color:var(--fg3);font-size:12px">Loading...</div>';re.classList.add('open');try{const d=await(await fetch('/api/history/'+eid)).json();window._lastScanData=d;const report=d.report||'';let summary=report;const idx=report.indexOf('## AI Breach Assessment');if(idx!==-1){const nextHeading=report.indexOf('\n## ',idx+3);summary=report.substring(idx,nextHeading!==-1?nextHeading:undefined);}re.innerHTML='<div class="re-header"><span style="font-weight:700;font-size:14px;color:var(--ac)">&#9760; Vulnerability Summary</span><div style="display:flex;gap:6px"><button class="hist-btn primary" onclick="downloadReport(\''+eid+'\',\''+esc(d.scope||'report')+'\')">Download .md</button><button class="hist-btn" onclick="window.open(\'/api/engagements/'+eid+'/download/html\',\'_blank\')">HTML</button><button class="hist-btn" onclick="window.open(\'/api/engagements/'+eid+'/download/pdf\',\'_blank\')">PDF</button><button class="hist-btn" onclick="switchView(\'findings\')">Show in Findings</button><button class="hist-btn" onclick="document.getElementById(\'re_'+eid+'\').classList.remove(\'open\');document.getElementById(\'re_'+eid+'\').innerHTML=\'\'">Close</button></div></div><div class="re-body md">'+md(summary)+'</div>';}catch(e){re.innerHTML='<div style="padding:14px;color:var(--dg);font-size:12px">Error loading report: '+esc(e.message)+'</div>';}};
 </script>
-</body>
-</html>

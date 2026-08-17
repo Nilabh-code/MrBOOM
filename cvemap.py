@@ -6,33 +6,63 @@ The DB lives in cvemap_db.py and can be extended per engagement.
 """
 import re, uuid
 
-# simple version tokenizer -> sortable tuple
+# simple version tokenizer -> sortable tuple.
+# Letters are preserved as rank tokens so OpenSSL letter releases
+# (1.0.1f < 1.0.1g) compare correctly instead of collapsing both to 1.0.1.
 def _vtok(v):
-    v = re.sub(r"[^0-9.]", ".", str(v).lower()).strip(".")
     parts = []
-    for p in v.split("."):
+    for p in re.split(r"[.\-+_]", str(v).lower().strip()):
+        if not p:
+            continue
         if p.isdigit():
             parts.append((0, int(p)))
+        elif len(p) == 1 and p.isalpha():
+            parts.append((1, ord(p)))
         else:
-            parts.append((1, 0))
+            # mixed alnum chunk ("4b3", "rc1") — numeric prefix if any, then letters
+            m = re.match(r"^(\d+)", p)
+            if m:
+                parts.append((0, int(m.group(1))))
+                rest = p[m.end():]
+                if rest:
+                    parts.append((1, sum(ord(c) for c in rest)))
+            else:
+                parts.append((1, sum(ord(c) for c in p)))
     return parts or [(0, 0)]
 
+def _trim(toks):
+    """Drop trailing zero tokens so 1.2 == 1.2.0."""
+    toks = list(toks)
+    while len(toks) > 1 and toks[-1] == (0, 0):
+        toks.pop()
+    return toks
+
 def _cmp(a, b):
-    ta, tb = _vtok(a), _vtok(b)
+    ta, tb = _trim(_vtok(a)), _trim(_vtok(b))
     for x, y in zip(ta, tb):
         if x < y: return -1
         if x > y: return 1
-    return (len(ta) > len(tb)) - (len(ta) < len(tb))
+    if len(ta) < len(tb): return -1
+    if len(ta) > len(tb): return 1
+    return 0
 
 def _in_range(ver, rng):
-    """rng is a list of (op, version) like [("lt","1.18.0")] or ("any",).
-       Non-eq ops AND together; multiple eq values OR together."""
-    if not rng or rng == [("any",)]:
+    """rng is a list of (op, version) like [("lt","1.18.0")] or [("any",)].
+       Non-eq ops AND together; multiple eq values OR together.
+       Robust to malformed entries mixing 1-tuples and 2-tuples."""
+    if not rng:
         return True
-    eq_values = [b for op, b in rng if op == "eq"]
+    ops = []
+    for item in rng:
+        if not isinstance(item, (tuple, list)) or len(item) < 2:
+            continue  # lone ("any",) mixed with ops: ignore the marker
+        ops.append((item[0], item[1]))
+    if not ops:
+        return True
+    eq_values = [b for op, b in ops if op == "eq"]
     if eq_values and not any(_cmp(ver, b) == 0 for b in eq_values):
         return False
-    for op, bound in rng:
+    for op, bound in ops:
         c = _cmp(ver, bound)
         if op == "lt" and not (c < 0): return False
         if op == "lte" and not (c <= 0): return False

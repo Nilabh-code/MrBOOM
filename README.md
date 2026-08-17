@@ -2,7 +2,7 @@
 
 All-in-one infrastructure reconnaissance, breach assessment, and **active exploit** platform with a live dashboard UI, SSE event streaming, AI-powered chat, and a persistent scan history.
 
-MrBOOM runs a full recon pipeline and then an **active attack battery** (BB22) that self-surfaces and probes GET/POST parameters for exploitable vulnerabilities — only breachable findings are reported.
+MrBOOM runs a full recon pipeline and then an **active attack battery** (BB22) that self-surfaces and probes GET/POST parameters for exploitable vulnerabilities — only breachable findings are reported. For verified, reproducible results use **TRINITY mode**: a 3-agent pipeline (**SCOUT → SKEPTIC → STRIKER**) that cross-checks every finding with unique-marker oracles, negative controls and independent re-proof PoCs before it can appear in a report.
 
 ## Quick Start
 
@@ -30,8 +30,13 @@ python app.py
 
 ### Alternative: Run with uvicorn directly
 ```bash
-uvicorn app:app --host 0.0.0.0 --port 8090
+uvicorn app:app --host 127.0.0.1 --port 8090
 ```
+
+> **Security:** `python app.py` binds to `127.0.0.1` by default. Binding a non-loopback
+> address (e.g. `--host 0.0.0.0` / `MRBOOM_HOST=0.0.0.0`) requires `MRBOOM_API_KEY` to be
+> set, which forces `X-API-Key` (or `?token=`) auth on all `/api/*` and `/events` routes.
+> Never expose the API publicly without the key.
 
 ## Usage
 
@@ -50,6 +55,40 @@ uvicorn app:app --host 0.0.0.0 --port 8090
 - WHOIS, WAF detection, security-headers audit, CSP / S3 analysis
 - JS bundle analysis, client-side assessment (cookies / DOM-XSS / CSP), wayback history
 - Katana crawler, origin-IP (CDN bypass) hunt, nuclei + CVE correlation, exploit-chain analysis
+
+## TRINITY — 3-Agent Cross-Verified Attack Pipeline
+
+The flagship mode. Three adversarial agents in a pipeline — a finding only
+reaches the report after surviving two independent verification layers:
+
+1. **SCOUT** (recon) — maps the live attack surface: crawls URLs, extracts
+   forms + query params, probes API paths, fingerprints tech. Emits concrete
+   injection candidates `(url, method, param, context)`.
+2. **SKEPTIC** (cross-check) — adversarially re-tests every candidate with
+   independent oracles and **negative controls**:
+   - XSS: unique random marker + context-escape oracle (`</script><img ...>`)
+   - SQLi: arithmetic oracle (`7*9134` → `63938`, never pre-computed in the
+     payload) + boolean TRUE/FALSE diff; time-based needs ≥2 corroborations
+   - SSTI: fresh random marker × fresh random math per probe — response must
+     contain marker **and** the computed result; control probe without math
+     must stay clean (a page that merely contains "49" can never fool it)
+   - CMDI: marker executed via one separator family, control without
+     separator must stay clean, then a second separator family corroborates
+   - Traversal: passwd/hosts content oracle with control clean
+   - Open redirect: `Location` header carries our external probe domain
+   - CRLF: injected header name actually present in response headers
+3. **STRIKER** (PoC) — re-proves every SKEPTIC-confirmed finding with a
+   fresh independent payload, computes the CVSS v3.1 base score, and emits
+   the reproducible PoC table. Findings the re-proof kills are demoted to
+   info, not dropped silently.
+
+No model required — the whole triad is deterministic and runs offline.
+Select **TRINITY** in the Mode dropdown (default), or `mode: "trinity"` in
+the API. Standalone CLI:
+
+```bash
+python trinity.py --target http://host:port --budget 120
+```
 
 ## Attack & Validation Battery
 
@@ -173,7 +212,7 @@ python route_breaker.py --target http://localhost:3000 --routes "/tools/diagnost
 | GET/POST | `/api/models/discover` | List available models |
 | POST | `/api/models/check` | Verify model is loaded |
 | POST | `/api/engagements` | Create engagement |
-| POST | `/api/engagements/{eid}/run` | Start pipeline run |
+| POST | `/api/engagements/{eid}/run` | Start run (`mode` = `trinity`, `pipeline` or `llm`) |
 | GET | `/api/engagements/{eid}/state` | Get run state + findings |
 | GET | `/api/engagements/{eid}/events` | Get event log |
 | GET | `/api/engagements/{eid}/report` | Get report text |

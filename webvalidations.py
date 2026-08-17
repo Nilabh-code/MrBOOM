@@ -100,8 +100,11 @@ def _req(method, url, headers=None, body=None, timeout=6, no_redirect=False):
     try:
         req = urllib.request.Request(url, data=body, headers={**_headers(), **(headers or {})}, method=method)
         if no_redirect:
-            opener = urllib.request.build_opener(_NoRedirect)
-            resp = opener.open(req, timeout=timeout, context=_ssl_ctx())
+            class _NoRedirHTTPS(urllib.request.HTTPSHandler):
+                def https_open(self, r):
+                    return self.do_open(urllib.request.http.client.HTTPSConnection, r, context=_ssl_ctx())
+            opener = urllib.request.build_opener(_NoRedirect, _NoRedirHTTPS())
+            resp = opener.open(req, timeout=timeout)
         else:
             resp = urllib.request.urlopen(req, timeout=timeout, context=_ssl_ctx())
         return resp.status, dict(resp.headers), resp.read().decode("utf-8", errors="ignore")

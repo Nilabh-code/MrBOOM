@@ -536,7 +536,7 @@ def crash_analyze(
 def research_hunt(
     repo: str,
     rounds: int = 3,
-    sandbox: str = "local",
+    sandbox: str = "auto",
     base_url: str = "",
     model: str = "",
     api_key: str = "",
@@ -547,7 +547,7 @@ def research_hunt(
     Args:
         repo: Git URL or local path of target.
         rounds: Max hypothesis rounds (default 3).
-        sandbox: 'local' (subprocess w/ limits) or 'docker'.
+        sandbox: 'auto' (docker > bwrap > local), 'docker', 'bwrap', or 'local'.
         base_url/model/api_key: LLM for hypothesis generation.
 
     Returns:

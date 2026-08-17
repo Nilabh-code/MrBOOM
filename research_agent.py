@@ -206,34 +206,96 @@ def sink_probes(repo):
     return hyps[:10]
 
 # ─── Execution ─────────────────────────────────────────────────────────
-def execute_poc(poc_code, sandbox="local", timeout=20):
-    """Run PoC. Returns {exit_code, output_tail, crashed, triggered}."""
+def _have(bin_name):
+    return bool(shutil.which(bin_name))
+
+def select_sandbox(mode="auto"):
+    """Resolve the requested sandbox mode to the best one available.
+    'auto' prefers docker, then bwrap, then bare local (last resort)."""
+    if mode == "docker":
+        return "docker" if _have("docker") else select_sandbox("auto")
+    if mode == "bwrap":
+        return "bwrap" if _have("bwrap") else select_sandbox("auto")
+    if mode == "local":
+        return "local"
+    if _have("docker"):
+        return "docker"
+    if _have("bwrap"):
+        return "bwrap"
+    return "local"
+
+def execute_poc(poc_code, sandbox="auto", timeout=20, allow_network=False):
+    """Run PoC inside the best available sandbox (docker > bwrap > local).
+    docker: isolated container, net disabled unless allow_network, 512MB/1 CPU.
+    bwrap:  read-only rootfs view, private /tmp, PID/UTS/IPC namespaces,
+            network unshared unless allow_network.
+    local:  bare subprocess — no isolation; only when nothing else exists
+            or explicitly requested. Returns {sandbox, exit_code, output_tail,
+            crashed, triggered}."""
+    mode = select_sandbox(sandbox)
     tmp = tempfile.NamedTemporaryFile("w", suffix=".py", delete=False)
     tmp.write(poc_code); tmp.close()
+    os.chmod(tmp.name, 0o644)  # NamedTemporaryFile creates 0600; docker/bwrap uids need read
     try:
-        if sandbox == "docker" and shutil.which("docker"):
-            cmd = ["docker", "run", "--rm", "--network", "none", "-m", "512m",
-                   "--cpus", "1", "-v", f"{tmp.name}:/poc.py:ro", "python:3.11-slim",
+        if mode == "docker":
+            cmd = ["docker", "run", "--rm",
+                   "--network", "host" if allow_network else "none",
+                   "-m", "512m", "--memory-swap", "512m", "--cpus", "1",
+                   "--pids-limit", "256", "--cap-drop", "ALL",
+                   "--security-opt", "no-new-privileges",
+                   "-v", f"{tmp.name}:/poc.py:ro", "python:3.11-slim",
                    "python", "/poc.py"]
+        elif mode == "bwrap":
+            cmd = ["bwrap", "--proc", "/proc", "--dev", "/dev",
+                   "--tmpfs", "/tmp", "--tmpfs", "/run",
+                   "--unshare-pid", "--unshare-uts", "--unshare-ipc",
+                   "--new-session", "--die-with-parent"]
+            if not allow_network:
+                cmd.append("--unshare-net")
+            for src in ("/usr", "/lib", "/lib64", "/bin", "/sbin", "/etc"):
+                p = Path(src)
+                if p.is_symlink():
+                    tgt = os.readlink(src)
+                    cmd += ["--symlink", tgt, src]
+                elif p.is_dir():
+                    cmd += ["--ro-bind", src, src]
+            prefix = os.path.realpath(sys.prefix)
+            cmd += ["--ro-bind", prefix, prefix]
+            exe = os.path.realpath(sys.executable)
+            if not exe.startswith(prefix + os.sep):
+                cmd += ["--ro-bind", exe, exe]
+            cmd += ["--ro-bind", tmp.name, "/poc.py", sys.executable, "/poc.py"]
         else:
             cmd = [sys.executable, tmp.name]
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         out = (r.stdout or "") + (r.stderr or "")
         crashed = r.returncode != 0
         triggered = "TRIGGERED:TRUE" in (r.stdout or "")
-        return {"exit_code": r.returncode, "output_tail": out[-600:],
+        return {"sandbox": mode, "exit_code": r.returncode, "output_tail": out[-600:],
                 "crashed": crashed, "triggered": triggered}
     except subprocess.TimeoutExpired:
-        return {"exit_code": -9, "output_tail": "TIMEOUT", "crashed": False, "triggered": False}
+        return {"sandbox": mode, "exit_code": -9, "output_tail": "TIMEOUT",
+                "crashed": False, "triggered": False}
     except Exception as e:
-        return {"exit_code": -1, "output_tail": f"exec error: {e}", "crashed": False, "triggered": False}
+        return {"sandbox": mode, "exit_code": -1, "output_tail": f"exec error: {e}",
+                "crashed": False, "triggered": False}
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
 
 # ─── Main loop ─────────────────────────────────────────────────────────
-def hunt(repo, rounds=3, sandbox="local", base_url="", model="", api_key="", out_dir=None, target=""):
+def hunt(repo, rounds=3, sandbox="auto", base_url="", model="", api_key="", out_dir=None, target=""):
     out_dir = out_dir or tempfile.mkdtemp(prefix="mrboom-research-")
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     surface = summarize(repo)
-    log = {"surface": surface, "rounds": [], "findings": [], "confirmed": [], "target": target}
+    allow_network = bool(target)  # PoCs must reach the authorized live target
+    smode = select_sandbox(sandbox)
+    if smode == "local" and sandbox not in ("local",):
+        print(f"[research-agent] WARNING: no docker/bwrap available — PoCs run UNSANDBOXED locally", file=sys.stderr)
+    log = {"surface": surface, "rounds": [], "findings": [], "confirmed": [], "target": target,
+           "sandbox": smode}
     prior = []
     for rnd in range(1, rounds + 1):
         hyps = hypothesize(surface, base_url, model, api_key, prior=prior, target=target)
@@ -252,7 +314,7 @@ def hunt(repo, rounds=3, sandbox="local", base_url="", model="", api_key="", out
                 continue
             poc_path = Path(out_dir) / f"poc_r{rnd}_{h['id']}.py"
             poc_path.write_text(h["poc"])
-            res = execute_poc(h["poc"], sandbox=sandbox)
+            res = execute_poc(h["poc"], sandbox=sandbox, allow_network=allow_network)
             entry = {"hypothesis": h, "result": res,
                      "status": "CONFIRMED" if res["triggered"] else ("CRASH" if res["crashed"] else "no-signal"),
                      "poc_path": str(poc_path)}
@@ -276,16 +338,23 @@ def hunt(repo, rounds=3, sandbox="local", base_url="", model="", api_key="", out
             break  # confirmed is a strong signal; stop
     return log
 
+def _safe_repo_url(url):
+    if not url or str(url).startswith("-"):
+        raise RuntimeError(f"unsafe repo URL (option injection blocked): {url!r}")
+    return str(url)
+
 def clone_repo(url, dest):
     if "://" not in url and not url.startswith("git@"):
         # plain local path (may not even be a git repo)
         if Path(url).exists():
             return str(Path(url))
         raise RuntimeError(f"local path does not exist: {url}")
+    url = _safe_repo_url(url)
     dest = Path(dest)
     if dest.exists(): return str(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    r = subprocess.run(["git", "clone", "--quiet", "--depth", "1", url, str(dest)],
+    # `--` prevents the repo URL from being parsed as a git option (--upload-pack RCE).
+    r = subprocess.run(["git", "clone", "--quiet", "--depth", "1", "--", url, str(dest)],
                        capture_output=True, text=True, timeout=600)
     if r.returncode != 0:
         raise RuntimeError(f"clone failed: {r.stderr[-400:]}")
@@ -296,7 +365,8 @@ def main():
     ap.add_argument("--repo", required=True, help="local path or git URL")
     ap.add_argument("--dest", default="/tmp/mrboom-research", help="clone destination")
     ap.add_argument("--rounds", type=int, default=3)
-    ap.add_argument("--sandbox", default="local", choices=["local", "docker"])
+    ap.add_argument("--sandbox", default="auto", choices=["auto", "local", "docker", "bwrap"],
+                    help="PoC isolation: auto = docker > bwrap > local (default)")
     ap.add_argument("--target", default="", help="live authorized target base URL (e.g. http://localhost:3000) so PoCs hit it via HTTP")
     ap.add_argument("--out", default=None)
     ap.add_argument("--base-url", default=os.environ.get("MRBOOM_BASE_URL", ""))

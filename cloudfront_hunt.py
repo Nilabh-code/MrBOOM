@@ -308,8 +308,12 @@ def probe_origin(ip, domain, time_budget, t_start):
             return True, domain, f"{scheme}:{status} redirect->{loc[:60]}", is_cdn, cdn_name
         if status == 200 and root in bl[:2000]:
             return True, domain, f"{scheme}:{status} body-match", is_cdn, cdn_name
+        # A bare reachable HTTP box (200/301/302/403 with no domain evidence)
+        # is NOT a confirmed origin — it may just be any vhost on shared
+        # hosting or a leftover historical IP. Keep it as an unconfirmed
+        # candidate so operators can triage, don't claim a bypass.
         if status in (200, 301, 302, 403):
-            return True, domain, f"{scheme}:{status} reachable", is_cdn, cdn_name
+            return False, "", f"{scheme}:{status} reachable-only", is_cdn, cdn_name
     return False, "", "", is_cdn, cdn_name
 
 

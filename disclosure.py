@@ -25,12 +25,13 @@ from pathlib import Path
 CVSS_METRICS = {
     "AV": {"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.2},
     "AC": {"L": 0.77, "H": 0.44},
-    "PR": {"N": 0.85, "L": 0.62, "H": 0.27},
+    # PR is scope-dependent in CVSS v3.1: L/H increase 0.62→0.68 and 0.27→0.50
+    # when Scope is Changed.
+    "PR": {"U": {"N": 0.85, "L": 0.62, "H": 0.27},
+           "C": {"N": 0.85, "L": 0.68, "H": 0.50}},
     "UI": {"N": 0.85, "R": 0.62},
     "S": {"U": 1.0, "C": 1.0},
 }
-SCOPE_PR = {"U": {"C": 6.42, "I": 7.52, "E": 3.25}, "C": {"C": 7.52, "I": 7.52, "E": 3.25}}
-SCOPE_IMPACT = {"U": 6.42, "C": 7.52}
 
 def _roundup(x):
     return math.ceil(x * 10) / 10
@@ -48,8 +49,9 @@ def cvss3(vector):
             parts[k] = val
     try:
         av = CVSS_METRICS["AV"][parts["AV"]]; ac = CVSS_METRICS["AC"][parts["AC"]]
-        pr = CVSS_METRICS["PR"][parts["PR"]]; ui = CVSS_METRICS["UI"][parts["UI"]]
-        s = parts["S"]
+        ui = CVSS_METRICS["UI"][parts["UI"]]
+        s = parts["S"] if parts["S"] in ("U", "C") else "U"
+        pr = CVSS_METRICS["PR"][s][parts["PR"]]
         c = {"H": 0.56, "L": 0.22, "N": 0.0}[parts["C"]]
         i = {"H": 0.56, "L": 0.22, "N": 0.0}[parts["I"]]
         a = {"H": 0.56, "L": 0.22, "N": 0.0}[parts["A"]]
@@ -59,7 +61,8 @@ def cvss3(vector):
     if s == "U":
         impact = 6.42 * iss
     else:
-        impact = 7.52 * (iss - 0.029) - 3.25 * (iss - 0.02) ** 15
+        # changed-scope impact (verified against NVD, e.g. CVE-2021-45046 = 9.0)
+        impact = 7.52 * (iss - 0.029) - 3.25 * ((iss - 0.02) ** 15)
     exploit = 8.22 * av * ac * pr * ui
     if impact <= 0:
         score = 0.0

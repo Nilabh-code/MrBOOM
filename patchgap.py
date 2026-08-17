@@ -73,6 +73,11 @@ def _path_risky(files):
     risky = [f for f in files if RISKY_AREAS.search(f)]
     return risky
 
+def _safe_repo_url(url):
+    if not url or str(url).startswith("-"):
+        raise RuntimeError(f"unsafe repo URL (option injection blocked): {url!r}")
+    return str(url)
+
 def clone_repo(url, dest, depth=200):
     """Shallow-ish clone for speed. Returns repo path. Existing dirs are
     refreshed best-effort: a transient fetch failure never crashes a watcher.
@@ -81,6 +86,7 @@ def clone_repo(url, dest, depth=200):
         if Path(url).exists():
             return str(Path(url))
         raise RuntimeError(f"local path does not exist: {url}")
+    url = _safe_repo_url(url)
     dest = Path(dest)
     if (dest / ".git").exists() or dest.exists():
         try:
@@ -90,14 +96,15 @@ def clone_repo(url, dest, depth=200):
             pass  # stale data is fine for diff analysis
         return str(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
+    # `--` prevents any residual value from being parsed as a git option.
     cmd = ["git", "clone", "--quiet", "--depth", str(depth), "--filter=blob:none",
-           url, str(dest)]
+           "--", url, str(dest)]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
     if r.returncode != 0:
         # partial-clone fetch errors are common; clean up and retry with a
         # plain (full-history) clone before giving up
         shutil.rmtree(dest, ignore_errors=True)
-        r2 = subprocess.run(["git", "clone", "--quiet", url, str(dest)],
+        r2 = subprocess.run(["git", "clone", "--quiet", "--", url, str(dest)],
                             capture_output=True, text=True, timeout=900)
         if r2.returncode != 0:
             raise RuntimeError(f"clone failed: {r.stderr[-400:] or r2.stderr[-400:]}")

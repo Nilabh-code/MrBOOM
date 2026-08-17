@@ -6,11 +6,11 @@ VERDICT // BREACH ENGINE — goes absolutely nuclear on open ports.
 - MITRE ATT&CK mappings per attack vector
 Set VERDICT_REPO=C:\\path\\to\\repo to enable secret scanning.
 """
-import subprocess, json, shutil, uuid, hashlib, re, os, ipaddress, tempfile, socket, ssl, time
+import subprocess, json, shutil, uuid, hashlib, re, os, ipaddress, tempfile, socket, ssl, time, random
 from urllib.request import urlopen, Request
 from datetime import datetime, timezone
 from planner import plan, analyze, breach_analyze
-from exploit import run_auto_exploit, start_listener, generate_payload, list_callbacks, get_callback, serve_payload
+from exploit import run_auto_exploit, start_listener, generate_payload, list_callbacks, get_callback, serve_payload, set_scope
 import stealth
 
 def random_hostname():
@@ -57,153 +57,104 @@ def tmp_list(items):
 
 # ---------- SERVICE BANNER GRABBER (ZERO-INSTALL) ----------
 # Common ports and their expected service names
+# NOTE: each port appears exactly once (deduplicated 2026-08).
+# Ambiguous/secondary names live in PORT_ALTERNATIVES below.
 KNOWN_SERVICES = {
-    # File Transfer / Remote Access
-    21: "FTP", 22: "SSH", 23: "Telnet", 69: "TFTP", 115: "SFTP", 989: "FTPS-Data",
-    990: "FTPS-Control", 992: "Telnet-TLS", 3389: "RDP", 5900: "VNC", 5901: "VNC-1",
-    5902: "VNC-2", 5903: "VNC-3", 5800: "VNC-HTTP", 5801: "VNC-HTTP-1",
-    2222: "SSH-alt", 22222: "SSH-alt2",
-    # Email
-    25: "SMTP", 465: "SMTPS", 587: "SMTP Submission", 110: "POP3",
-    995: "POP3S", 143: "IMAP", 993: "IMAPS", 4190: "ManageSieve",
-    4555: "SMTP-alt", 2525: "SMTP-alt",
-    # Web
-    80: "HTTP", 443: "HTTPS", 8080: "HTTP-proxy", 8443: "HTTPS-alt",
-    8000: "HTTP-alt", 8008: "HTTP-alt", 8888: "HTTP-alt", 8880: "HTTP-alt",
-    9443: "HTTPS-alt", 10443: "HTTPS-alt2", 16443: "HTTPS-alt3",
-    8081: "HTTP-alt", 8082: "HTTP-proxy-alt", 9080: "WebSphere HTTP",
-    9090: "HTTP-alt", 8090: "HTTP-alt", 8444: "HTTPS-alt",
-    79: "Finger", 81: "HTTP-alt", 82: "HTTP-alt", 83: "HTTP-alt",
-    84: "HTTP-alt", 85: "HTTP-alt", 86: "HTTP-alt", 88: "Kerberos",
-    90: "HTTP-alt", 98: "Linuxconf",
-    # Directory / Auth
-    389: "LDAP", 636: "LDAPS", 3268: "Global Catalog", 3269: "Global Catalog SSL",
-    88: "Kerberos", 464: "Kerberos Change", 749: "Kerberos Admin",
-    137: "NetBIOS Name", 138: "NetBIOS Datagram", 139: "NetBIOS Session",
-    445: "SMB", 135: "MSRPC", 593: "MSRPC-HTTP",
-    # Database
-    3306: "MySQL", 5432: "PostgreSQL", 1433: "MSSQL", 1434: "MSSQL Monitor",
-    1521: "Oracle DB", 2483: "Oracle DB-alt", 2484: "Oracle DB-TLS",
-    27017: "MongoDB", 27018: "MongoDB-Alt", 27019: "MongoDB-Alt2",
-    6379: "Redis", 6380: "Redis-TLS", 7000: "Redis-Cluster",
-    7001: "Redis-Cluster", 7002: "Redis-Cluster", 9418: "Git",
-    9042: "Cassandra CQL", 9160: "Cassandra Thrift", 5984: "CouchDB",
-    9200: "Elasticsearch", 9300: "Elasticsearch Transport",
-    9092: "Kafka", 9093: "Kafka SSL", 8086: "InfluxDB", 8083: "InfluxDB Admin",
-    11211: "Memcached", 11214: "Memcached SSL", 11215: "Memcached SSL-alt",
-    15672: "RabbitMQ Management", 5672: "RabbitMQ", 5671: "RabbitMQ SSL",
-    1883: "MQTT", 8883: "MQTT SSL", 28015: "RethinkDB", 29015: "RethinkDB",
-    7474: "Neo4j", 7473: "Neo4j SSL", 7687: "Neo4j Bolt",
-    6370: "Redis-Sentinel", 5000: "Flask/HTTP-alt", 5001: "HTTP-alt",
-    # Search / Analytics
-    5601: "Kibana", 8983: "Solr", 8089: "Splunkd", 9997: "Splunk Forwarder",
-    8006: "Splunk Web", 1514: "Splunk Monitor",
-    # Container / Orchestration
-    2375: "Docker API", 2376: "Docker API SSL", 6443: "Kubernetes API",
-    8443: "Kubernetes-alt", 10250: "Kubelet API", 10255: "Kubelet Readonly",
-    10256: "Kubelet Probe", 4243: "Docker", 4244: "Docker-TLS",
-    9099: "Kuberenetes Metrics", 3000: "Grafana/GitLab/HTTP-alt",
-    # Cloud / HashiCorp
-    8200: "Vault", 8201: "Vault HA", 4646: "Nomad", 4647: "Nomad-RPC",
-    8500: "Consul DNS", 8300: "Consul", 8301: "Consul Serf WAN",
-    8302: "Consul Serf LAN", 8600: "Consul DNS-alt",
-    # Message Queues / Streaming
-    4222: "NATS", 8222: "NATS HTTP", 6222: "NATS Cluster",
-    5672: "RabbitMQ", 61613: "Stomp", 61614: "Stomp SSL",
-    61616: "ActiveMQ", 61617: "ActiveMQ SSL",
-    44444: "ActiveMQ-alt",
-    # Monitoring / Metrics
-    9090: "Prometheus", 9091: "Prometheus Pushgateway", 9093: "Alertmanager",
-    9100: "Node Exporter", 9113: "Nginx Exporter", 9182: "Fluentd",
-    9256: "Mongo Exporter", 9300: "ES Transport",
-    2003: "Graphite/Carbon", 2004: "Graphite Pickle", 8080: "Prometheus-alt",
-    # Distributed Systems / Coordination
-    2181: "ZooKeeper", 2888: "ZooKeeper Peer", 3888: "ZooKeeper Leader",
-    7077: "Spark Master", 4040: "Spark UI", 8081: "Spark Worker",
-    8042: "YARN", 8088: "YARN Resource Manager", 19888: "YARN History",
-    10033: "Hadoop History", 50070: "Hadoop NameNode", 50075: "Hadoop DataNode",
-    50090: "Hadoop SecondaryName", 60010: "HBase Master", 60030: "HBase Region",
-    8761: "Eureka", 8777: "HTTP-alt",
-    # Messaging / Notifications
-    6667: "IRC", 6668: "IRC-SSL", 6669: "IRC-SSL-alt",
-    5222: "XMPP", 5223: "XMPP SSL", 5269: "XMPP Server", 5280: "XMPP BOSH",
-    5050: "Matrix", 8448: "Matrix Federation",
-    # VoIP / Media
-    5060: "SIP", 5061: "SIPS", 4569: "IAX2", 5036: "IAX",
-    1935: "RTMP", 8554: "RTSP", 554: "RTSP",
-    1755: "MMS", 5004: "RTP", 5005: "RTP-alt",
-    3478: "STUN/TURN", 3479: "STUN/TURN TLS", 5349: "TURN TLS",
-    # Remote Management
-    22: "SSH", 23: "Telnet", 3389: "RDP", 5900: "VNC",
-    10000: "Webmin", 10001: "Webmin-alt", 20000: "DDNS/SSM",
-    5800: "VNC-HTTP", 6283: "RemoteAdmin",
-    8291: "RouterOS Winbox", 80: "RouterOS Web", 443: "RouterOS Web SSL",
-    # VPN / Tunneling
-    1194: "OpenVPN", 1723: "PPTP", 1701: "L2TP", 4500: "IPsec NAT-T",
-    500: "IPsec ISAKMP", 47: "GRE",
-    1521: "IPsec-alt", 1080: "SOCKS", 1090: "SOCKS-alt",
-    3128: "Squid Proxy", 8080: "Proxy-alt", 8123: "Proxy-alt",
-    9050: "Tor SOCKS", 9051: "Tor Control", 9150: "Tor Browser",
-    8118: "Privoxy", 443: "SSH-VPN-alt",
-    # Dev / Debug
-    5005: "Java Debug", 5006: "Java Debug-alt", 8787: "Java Debug",
-    4000: "Node.js Dev", 3000: "Node.js/HTTP-alt", 9229: "Node.js Debug",
-    5858: "Node.js Debug-alt", 3001: "Node.js Dev-alt",
-    35729: "LiveReload", 3002: "HTTP-alt",
-    # Version Control
-    9418: "Git", 22: "Git SSH", 443: "Git HTTPS", 8080: "Git HTTP",
-    3690: "SVN", 8443: "SVN HTTPS",
-    # Game / RAT / Malware
-    31337: "BackOrifice", 12345: "NetBus", 12346: "NetBus-alt",
-    27374: "Sub7", 54321: "PCAnywhere", 6669: "DarkComet",
-    4444: "Metasploit", 6666: "IRC-alt", 10000: "Backdoor-alt",
-    2000: "RemotelyAnywhere",
-    # Windows / AD
-    88: "Kerberos", 135: "MSRPC", 137: "NetBIOS-Name", 139: "NetBIOS-SSN",
-    389: "LDAP", 445: "SMB", 464: "Kerberos-KPasswd",
-    636: "LDAP-SSL", 3268: "GC-LDAP", 3269: "GC-LDAP-SSL",
-    593: "MSRPC-HTTP", 3389: "RDP", 5985: "WinRM-HTTP",
-    5986: "WinRM-HTTPS", 47001: "WinRM-Service",
-    49152: "RPC-Dynamic", 49153: "RPC-Dynamic", 49154: "RPC-Dynamic",
-    49155: "RPC-Dynamic", 49156: "RPC-Dynamic", 49157: "RPC-Dynamic",
-    # OT / ICS
-    102: "Siemens S7", 502: "Modbus", 20000: "DNP3", 47808: "BACnet",
-    1911: "Niagara Fox", 44818: "EtherNet/IP", 34980: "EtherCAT",
-    4840: "OPC-UA", 4800: "Moxa", 4000: "Siemens S7-alt",
-    2455: "Mitsubishi", 1234: "Omron FINS",
-    # Print / IoT
-    515: "LPD/LPR", 631: "IPP", 9100: "JetDirect", 5989: "CIM/WBEM",
-    443: "HTTPS", 80: "HTTP", 1900: "SSDP", 5353: "mDNS",
-    5355: "LLMNR", 3702: "WS-Discovery",
-    # Blockchain / Web3
-    8545: "Ethereum JSON-RPC", 8546: "Ethereum WebSocket",
-    8547: "Ethereum GraphQL", 30303: "Ethereum P2P", 30304: "Ethereum P2P-alt",
-    8332: "Bitcoin JSON-RPC", 8333: "Bitcoin P2P", 18332: "Bitcoin Testnet-RPC",
-    10335: "Mina P2P", 8000: "Solana JSON-RPC", 8899: "Solana P2P",
-    9651: "Cosmos P2P", 26656: "Cosmos P2P",
-    # Misc Important
-    53: "DNS", 67: "DHCP", 68: "DHCP Client", 69: "TFTP",
-    111: "RPC Portmapper", 161: "SNMP", 162: "SNMP Trap",
-    177: "XDMCP", 514: "Syslog", 6514: "Syslog TLS",
-    873: "Rsync", 873: "Rsync", 2049: "NFS", 111: "Portmapper",
-    548: "AFP", 24224: "Fluentd", 24225: "Fluentd-alt",
-    16686: "Jaeger", 6831: "Jaeger Udp", 14250: "Jaeger gRPC",
-    9419: "Git-http",
-    # Media Streaming / DLNA
-    1900: "UPnP/SSDP", 5000: "DLNA", 6001: "UPnP", 32469: "Plex",
-    32400: "Plex Server", 8096: "Emby/Jellyfin", 8920: "Emby SSL",
-    10001: "UPnP-alt",
-    # K8s specific
-    10248: "Kubelet-Health", 10249: "Kube-Proxy", 10251: "Kube-Scheduler",
-    10252: "Kube-Controller", 10259: "Kube-Scheduler-New",
-    2379: "Etcd", 2380: "Etcd Peer", 2381: "Etcd Metrics",
-    4001: "Etcd-alt", 7001: "Etcd-client-alt",
-    # Common Web Stack
-    3000: "HTTP-Dev", 4567: "Sinatra", 5000: "Flask-Dev",
-    8000: "HTTP-Dev", 8770: "HTTP-Dev-alt", 8880: "CDN-Admin",
-    9000: "HTTP-Dev", 9001: "Tor Control/HTTP-alt", 9010: "HTTP-alt",
-    4200: "Angular Dev", 5173: "Vite Dev", 3001: "HTTP-Dev",
-    4001: "HTTP-Dev", 5002: "HTTP-alt",
+    21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP',
+    47: 'GRE', 53: 'DNS', 67: 'DHCP', 68: 'DHCP Client',
+    69: 'TFTP', 79: 'Finger', 80: 'HTTP', 81: 'HTTP-alt',
+    82: 'HTTP-alt', 83: 'HTTP-alt', 84: 'HTTP-alt', 85: 'HTTP-alt',
+    86: 'HTTP-alt', 88: 'Kerberos', 90: 'HTTP-alt', 98: 'Linuxconf',
+    102: 'Siemens S7', 110: 'POP3', 111: 'RPC Portmapper', 115: 'SFTP',
+    135: 'MSRPC', 137: 'NetBIOS Name', 138: 'NetBIOS Datagram', 139: 'NetBIOS Session',
+    143: 'IMAP', 161: 'SNMP', 162: 'SNMP Trap', 177: 'XDMCP',
+    389: 'LDAP', 443: 'HTTPS', 445: 'SMB', 464: 'Kerberos Change',
+    465: 'SMTPS', 500: 'IPsec ISAKMP', 502: 'Modbus', 514: 'Syslog',
+    515: 'LPD/LPR', 548: 'AFP', 554: 'RTSP', 587: 'SMTP Submission',
+    593: 'MSRPC-HTTP', 631: 'IPP', 636: 'LDAPS', 749: 'Kerberos Admin',
+    873: 'Rsync', 989: 'FTPS-Data', 990: 'FTPS-Control', 992: 'Telnet-TLS',
+    993: 'IMAPS', 995: 'POP3S', 1080: 'SOCKS', 1090: 'SOCKS-alt',
+    1194: 'OpenVPN', 1234: 'Omron FINS', 1433: 'MSSQL', 1434: 'MSSQL Monitor',
+    1514: 'Splunk Monitor', 1521: 'Oracle DB', 1701: 'L2TP', 1723: 'PPTP',
+    1755: 'MMS', 1883: 'MQTT', 1900: 'SSDP', 1911: 'Niagara Fox',
+    1935: 'RTMP', 2000: 'RemotelyAnywhere', 2003: 'Graphite/Carbon', 2004: 'Graphite Pickle',
+    2049: 'NFS', 2181: 'ZooKeeper', 2222: 'SSH-alt', 2375: 'Docker API',
+    2376: 'Docker API SSL', 2379: 'Etcd', 2380: 'Etcd Peer', 2381: 'Etcd Metrics',
+    2455: 'Mitsubishi', 2483: 'Oracle DB-alt', 2484: 'Oracle DB-TLS', 2525: 'SMTP-alt',
+    2888: 'ZooKeeper Peer', 3000: 'HTTP-Dev', 3001: 'Node.js Dev-alt', 3002: 'HTTP-alt',
+    3128: 'Squid Proxy', 3268: 'Global Catalog', 3269: 'Global Catalog SSL', 3306: 'MySQL',
+    3389: 'RDP', 3478: 'STUN/TURN', 3479: 'STUN/TURN TLS', 3690: 'SVN',
+    3702: 'WS-Discovery', 3888: 'ZooKeeper Leader', 4000: 'Node.js Dev', 4001: 'Etcd-alt',
+    4040: 'Spark UI', 4190: 'ManageSieve', 4200: 'Angular Dev', 4222: 'NATS',
+    4243: 'Docker', 4244: 'Docker-TLS', 4444: 'Metasploit', 4500: 'IPsec NAT-T',
+    4555: 'SMTP-alt', 4567: 'Sinatra', 4569: 'IAX2', 4646: 'Nomad',
+    4647: 'Nomad-RPC', 4800: 'Moxa', 4840: 'OPC-UA', 5000: 'Flask/HTTP-alt',
+    5001: 'HTTP-alt', 5002: 'HTTP-alt', 5004: 'RTP', 5005: 'Java Debug',
+    5006: 'Java Debug-alt', 5036: 'IAX', 5050: 'Matrix', 5060: 'SIP',
+    5061: 'SIPS', 5173: 'Vite Dev', 5222: 'XMPP', 5223: 'XMPP SSL',
+    5269: 'XMPP Server', 5280: 'XMPP BOSH', 5349: 'TURN TLS', 5353: 'mDNS',
+    5355: 'LLMNR', 5432: 'PostgreSQL', 5601: 'Kibana', 5671: 'RabbitMQ SSL',
+    5672: 'RabbitMQ', 5800: 'VNC-HTTP', 5801: 'VNC-HTTP-1', 5858: 'Node.js Debug-alt',
+    5900: 'VNC', 5901: 'VNC-1', 5902: 'VNC-2', 5903: 'VNC-3',
+    5984: 'CouchDB', 5985: 'WinRM-HTTP', 5986: 'WinRM-HTTPS', 5989: 'CIM/WBEM',
+    6001: 'UPnP', 6222: 'NATS Cluster', 6283: 'RemoteAdmin', 6370: 'Redis-Sentinel',
+    6379: 'Redis', 6380: 'Redis-TLS', 6443: 'Kubernetes API', 6514: 'Syslog TLS',
+    6666: 'IRC-alt', 6667: 'IRC', 6668: 'IRC-SSL', 6669: 'IRC-SSL-alt',
+    6831: 'Jaeger Udp', 7000: 'Redis-Cluster', 7001: 'WebLogic', 7002: 'Redis-Cluster',
+    7077: 'Spark Master', 7473: 'Neo4j SSL', 7474: 'Neo4j', 7687: 'Neo4j Bolt',
+    8000: 'HTTP-alt', 8006: 'Splunk Web', 8008: 'HTTP-alt', 8042: 'YARN',
+    8080: 'HTTP-proxy', 8081: 'HTTP-alt', 8082: 'HTTP-proxy-alt', 8083: 'InfluxDB Admin',
+    8086: 'InfluxDB', 8088: 'YARN Resource Manager', 8089: 'Splunkd', 8090: 'HTTP-alt',
+    8096: 'Emby/Jellyfin', 8118: 'Privoxy', 8123: 'Proxy-alt', 8200: 'Vault',
+    8201: 'Vault HA', 8222: 'NATS HTTP', 8291: 'RouterOS Winbox', 8300: 'Consul',
+    8301: 'Consul Serf WAN', 8302: 'Consul Serf LAN', 8332: 'Bitcoin JSON-RPC', 8333: 'Bitcoin P2P',
+    8443: 'HTTPS-alt', 8444: 'HTTPS-alt', 8448: 'Matrix Federation', 8500: 'Consul DNS',
+    8545: 'Ethereum JSON-RPC', 8546: 'Ethereum WebSocket', 8547: 'Ethereum GraphQL', 8554: 'RTSP',
+    8600: 'Consul DNS-alt', 8761: 'Eureka', 8770: 'HTTP-Dev-alt', 8777: 'HTTP-alt',
+    8787: 'Java Debug', 8880: 'HTTP-alt', 8883: 'MQTT SSL', 8888: 'HTTP-alt',
+    8899: 'Solana P2P', 8920: 'Emby SSL', 8983: 'Solr', 9000: 'HTTP-Dev',
+    9001: 'Tor Control/HTTP-alt', 9010: 'HTTP-alt', 9042: 'Cassandra CQL', 9050: 'Tor SOCKS',
+    9051: 'Tor Control', 9080: 'WebSphere HTTP', 9090: 'Prometheus', 9091: 'Prometheus Pushgateway',
+    9092: 'Kafka', 9093: 'Alertmanager', 9099: 'Kuberenetes Metrics', 9100: 'Node Exporter',
+    9113: 'Nginx Exporter', 9150: 'Tor Browser', 9160: 'Cassandra Thrift', 9182: 'Fluentd',
+    9200: 'Elasticsearch', 9229: 'Node.js Debug', 9256: 'Mongo Exporter', 9300: 'Elasticsearch Transport',
+    9418: 'Git', 9419: 'Git-http', 9443: 'HTTPS-alt', 9651: 'Cosmos P2P',
+    9997: 'Splunk Forwarder', 10000: 'Webmin', 10001: 'Webmin-alt', 10033: 'Hadoop History',
+    10248: 'Kubelet-Health', 10249: 'Kube-Proxy', 10250: 'Kubelet API', 10251: 'Kube-Scheduler',
+    10252: 'Kube-Controller', 10255: 'Kubelet Readonly', 10256: 'Kubelet Probe', 10259: 'Kube-Scheduler-New',
+    10335: 'Mina P2P', 10443: 'HTTPS-alt2', 11211: 'Memcached', 11214: 'Memcached SSL',
+    11215: 'Memcached SSL-alt', 12345: 'NetBus', 12346: 'NetBus-alt', 14250: 'Jaeger gRPC',
+    15672: 'RabbitMQ Management', 16443: 'HTTPS-alt3', 16686: 'Jaeger', 18332: 'Bitcoin Testnet-RPC',
+    19888: 'YARN History', 20000: 'DNP3', 22222: 'SSH-alt2', 24224: 'Fluentd',
+    24225: 'Fluentd-alt', 26656: 'Cosmos P2P', 27017: 'MongoDB', 27018: 'MongoDB-Alt',
+    27019: 'MongoDB-Alt2', 27374: 'Sub7', 28015: 'RethinkDB', 29015: 'RethinkDB',
+    30303: 'Ethereum P2P', 30304: 'Ethereum P2P-alt', 31337: 'BackOrifice', 32400: 'Plex Server',
+    32469: 'Plex', 34980: 'EtherCAT', 35729: 'LiveReload', 44444: 'ActiveMQ-alt',
+    44818: 'EtherNet/IP', 47001: 'WinRM-Service', 47808: 'BACnet', 49152: 'RPC-Dynamic',
+    49153: 'RPC-Dynamic', 49154: 'RPC-Dynamic', 49155: 'RPC-Dynamic', 49156: 'RPC-Dynamic',
+    49157: 'RPC-Dynamic', 50070: 'Hadoop NameNode', 50075: 'Hadoop DataNode', 50090: 'Hadoop SecondaryName',
+    54321: 'PCAnywhere', 60010: 'HBase Master', 60030: 'HBase Region', 61613: 'Stomp',
+    61614: 'Stomp SSL', 61616: 'ActiveMQ', 61617: 'ActiveMQ SSL',
+}
+
+# Secondary/ambiguous service names per port (banner grab may match these).
+PORT_ALTERNATIVES = {
+    22: ('Git SSH',), 80: ('RouterOS Web',),
+    111: ('Portmapper',), 137: ('NetBIOS-Name',),
+    139: ('NetBIOS-SSN',), 443: ('RouterOS Web SSL', 'SSH-VPN-alt', 'Git HTTPS'),
+    464: ('Kerberos-KPasswd',), 636: ('LDAP-SSL',),
+    1521: ('IPsec-alt',), 1900: ('UPnP/SSDP',),
+    3000: ('Grafana/GitLab/HTTP-alt', 'Node.js/HTTP-alt'), 3001: ('HTTP-Dev',),
+    3268: ('GC-LDAP',), 3269: ('GC-LDAP-SSL',),
+    4000: ('Siemens S7-alt',), 4001: ('HTTP-Dev',),
+    5000: ('DLNA', 'Flask-Dev'), 5005: ('RTP-alt',),
+    6669: ('DarkComet',), 7001: ('Redis-Cluster', 'Etcd-client-alt'),
+    8000: ('Solana JSON-RPC', 'HTTP-Dev'), 8080: ('Prometheus-alt', 'Proxy-alt', 'Git HTTP'),
+    8081: ('Spark Worker',), 8443: ('Kubernetes-alt', 'SVN HTTPS'),
+    8880: ('CDN-Admin',), 9090: ('HTTP-alt',),
+    9093: ('Kafka SSL',), 9100: ('JetDirect',),
+    9300: ('ES Transport',), 10000: ('Backdoor-alt',),
+    10001: ('UPnP-alt',), 20000: ('DDNS/SSM',),
 }
 
 # Protocols that get specific banner grab techniques
@@ -2024,6 +1975,8 @@ def run_pipeline(eid, problem, DB, base_url="", model="", api_key="not-needed", 
     log(eng,"gate",f"engagement approved scope={len(eng['scope'])} exclusions={len(eng['exclusions'])}")
     for t in eng["scope"]: log(eng,"gate",f"ALLOW {t}")
     for x in eng["exclusions"]: log(eng,"gate",f"EXCLUDE {x}")
+    set_scope(eng["scope"], eng["exclusions"], enforce=True)
+    log(eng,"gate","exploit scope gate ARMED — dispatch/run_auto_exploit will refuse out-of-scope targets")
     missing = [t for t in ("subfinder","httpx","naabu","nuclei") if not tool(t)]
     if missing: log(eng,"gate",f"tools missing: {', '.join(missing)} — recon will be partial")
     ph("SCOPE GATE",100)

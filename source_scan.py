@@ -187,6 +187,7 @@ def gather(repo):
 def score(c):
     """Deterministic exploitability heuristic (0-10)."""
     s = 3.0
+    if c.get("semgrep"): s += 3.0  # taint-analysis confirmed flow
     if c["source_near"]: s += 4.0
     elif c["source_any"]: s += 2.0
     sev_words = {"code execution": 2, "command injection": 2, "deserialization": 2,
@@ -196,6 +197,107 @@ def score(c):
         if w in c["sink"].lower():
             s += v
     return round(min(s, 10), 1)
+
+# ─── Semgrep taint analysis (optional upgrade) ─────────────────────────
+# When the semgrep binary is installed, run a targeted ruleset to find
+# REAL source->sink taint flows (vs. nearby-source heuristics). Results are
+# merged with heuristic candidates and weighted higher.
+SEMGREP_RULES = [
+    {"id": "py-taint-cmdi", "langs": ["python"], "class": "command injection",
+     "pattern_sources": ["flask.request.args.get(...)", "flask.request.form.get(...)",
+                          "flask.request.values.get(...)", "request.args.get(...)",
+                          "request.form.get(...)", "sys.argv", "input(...)"],
+     "pattern_sinks": ["os.system(...)", "subprocess.run(...)", "subprocess.call(...)",
+                        "subprocess.Popen(...)", "os.popen(...)"]},
+    {"id": "js-taint-cmdi", "langs": ["javascript", "typescript"], "class": "command injection",
+     "pattern_sources": ["req.query", "req.body", "req.params", "process.argv"],
+     "pattern_sinks": ["child_process.exec(...)", "execSync(...)"]},
+    {"id": "go-taint-cmdi", "langs": ["go"], "class": "command injection",
+     "pattern_sources": ["$REQ.URL.Query().Get(...)", "$REQ.FormValue(...)"],
+     "pattern_sinks": ["exec.Command(...)"]},
+    {"id": "py-taint-sqli", "langs": ["python"], "class": "sql injection",
+     "pattern_sources": ["flask.request.args.get(...)", "flask.request.values.get(...)",
+                          "request.args.get(...)", "request.form.get(...)"],
+     "pattern_sinks": ["$CURSOR.execute(...)", "$DB.query(...)"]},
+    {"id": "py-taint-eval", "langs": ["python"], "class": "code execution",
+     "pattern_sources": ["request.args.get(...)", "flask.request.values.get(...)",
+                          "input(...)"],
+     "pattern_sinks": ["eval(...)", "exec(...)", "pickle.loads(...)"]},
+    {"id": "js-taint-eval", "langs": ["javascript", "typescript"], "class": "code execution",
+     "pattern_sources": ["req.query", "req.body", "req.params"],
+     "pattern_sinks": ["eval(...)", "new Function(...)"]},
+    {"id": "py-taint-traversal", "langs": ["python"], "class": "path traversal",
+     "pattern_sources": ["request.args.get(...)", "flask.request.values.get(...)"],
+     "pattern_sinks": ["open(...)", "flask.send_file(...)"]},
+    {"id": "py-taint-ssrf", "langs": ["python"], "class": "ssrf",
+     "pattern_sources": ["request.args.get(...)", "flask.request.values.get(...)"],
+     "pattern_sinks": ["requests.get(...)", "urllib.request.urlopen(...)"]},
+    {"id": "js-taint-ssrf", "langs": ["javascript", "typescript"], "class": "ssrf",
+     "pattern_sources": ["req.query", "req.body"],
+     "pattern_sinks": ["fetch(...)", "axios.get(...)"]},
+]
+
+def _semgrep_rules_dir():
+    import yaml as _y  # rules are emitted as yaml for semgrep -t mode
+    d = Path(os.environ.get("MRBOOM_SEMGREP_DIR", "/tmp/mrboom-semgrep-rules"))
+    d.mkdir(parents=True, exist_ok=True)
+    rules = []
+    for r in SEMGREP_RULES:
+        rules.append({
+            "id": r["id"],
+            "languages": r["langs"],
+            "severity": "ERROR",
+            "message": f"taint: {r['class']}",
+            "mode": "taint",
+            "pattern-sources": [{"pattern": p} for p in r["pattern_sources"]],
+            "pattern-sinks": [{"pattern": p} for p in r["pattern_sinks"]],
+        })
+    path = d / "mrboom-taint.yaml"
+    path.write_text(_y.safe_dump({"rules": rules}, sort_keys=False))
+    return str(d)
+
+def semgrep_available():
+    return bool(semgrep_bin())
+
+def semgrep_bin():
+    """Locate semgrep: env override, PATH, or project venv."""
+    env = os.environ.get("MRBOOM_SEMGREP_BIN")
+    if env and Path(env).exists():
+        return env
+    b = shutil.which("semgrep")
+    if b:
+        return b
+    for cand in (Path(__file__).parent / ".mrboom_venv" / "bin" / "semgrep",
+                 Path.home() / ".local" / "bin" / "semgrep"):
+        if cand.exists():
+            return str(cand)
+    return None
+
+def semgrep_scan(repo, timeout=600):
+    """Run semgrep taint rules. Returns candidates in the same shape as
+    gather(), or [] when semgrep is unavailable/failed."""
+    binp = semgrep_bin()
+    if not binp:
+        return []
+    try:
+        rules = _semgrep_rules_dir()
+        r = subprocess.run(
+            [binp, "--config", rules, "--json", "--quiet",
+             "--timeout", "0", "--error", "--max-target-bytes", "5000000", repo],
+            capture_output=True, text=True, timeout=timeout)
+        data = json.loads(r.stdout or "{}")
+    except Exception:
+        return []
+    cands, class_for = [], {r["id"]: r["class"] for r in SEMGREP_RULES}
+    for hit in data.get("results", []):
+        cands.append({
+            "file": hit.get("path", ""), "line": hit.get("start", {}).get("line", 0),
+            "sink": f"TAINT {class_for.get(hit.get('check_id','').split('.')[-1], 'flow')}",
+            "lang": "py", "snippet": hit.get("extra", {}).get("lines", "")[:400],
+            "source_near": True, "source_any": True, "semgrep": True,
+            "rule": hit.get("check_id", ""),
+        })
+    return cands
 
 # ─── LLM triage ────────────────────────────────────────────────────────
 def _llm(base_url, model, api_key, system, user, max_tokens=1900):
@@ -317,6 +419,14 @@ def triage(candidates, base_url="", model="", api_key="", max_batch=4):
 def scan_repo(repo, top=25, base_url="", model="", api_key=""):
     """End-to-end scan. Returns engine-compatible findings."""
     cands = gather(repo)
+    sg = semgrep_scan(repo)
+    if sg:
+        # dedupe (file,line) already found by heuristics; taint hits rank higher
+        seen = {(c["file"], c["line"]) for c in cands}
+        for c in sg:
+            if (c["file"], c["line"]) not in seen:
+                cands.append(c)
+                seen.add((c["file"], c["line"]))
     scored = sorted(cands, key=score, reverse=True)[:top]
     scored = triage(scored, base_url, model, api_key)
     findings = []
@@ -345,16 +455,23 @@ def scan_repo(repo, top=25, base_url="", model="", api_key=""):
         })
     return findings
 
+def _safe_repo_url(url):
+    if not url or str(url).startswith("-"):
+        raise RuntimeError(f"unsafe repo URL (option injection blocked): {url!r}")
+    return str(url)
+
 def clone_repo(url, dest):
     if "://" not in url and not url.startswith("git@"):
         if Path(url).exists():
             return str(Path(url))
         raise RuntimeError(f"local path does not exist: {url}")
+    url = _safe_repo_url(url)
     dest = Path(dest)
     if dest.exists():
         return str(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    r = subprocess.run(["git", "clone", "--quiet", "--depth", "1", url, str(dest)],
+    # `--` prevents the repo URL from being parsed as a git option (--upload-pack RCE).
+    r = subprocess.run(["git", "clone", "--quiet", "--depth", "1", "--", url, str(dest)],
                        capture_output=True, text=True, timeout=600)
     if r.returncode != 0:
         raise RuntimeError(f"clone failed: {r.stderr[-400:]}")
